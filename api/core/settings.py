@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
 
     # Third-party apps
     'rest_framework',
@@ -34,12 +35,12 @@ INSTALLED_APPS = [
 
     # Local apps
     'users.apps.UsersConfig',
-    'tests.apps.TestsConfig',
-    'sandbox.apps.SandboxConfig',
+    'search.apps.SearchConfig',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -67,6 +68,12 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'core.wsgi.application'
+
+# CORS settings
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
 
 # Database configuration for PostgreSQL
 DATABASES = {
@@ -121,9 +128,9 @@ REST_FRAMEWORK = {
 
 # API documentation settings
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'AI Security Test Platform API',
-    'DESCRIPTION': 'Documentation for the AI Security Test Platform.',
-    'VERSION': '1.0.0',
+    'TITLE': 'Interactive Search API',
+    'DESCRIPTION': 'Documentation for the Interactive Search API.',
+    'VERSION': '0.1.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'SWAGGER_UI_DIST_PATH': 'drf_spectacular_sidecar/swagger-ui/', # This is an optional setting to specify where the swagger UI is located.
 }

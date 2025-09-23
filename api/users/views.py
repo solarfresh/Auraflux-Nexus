@@ -11,8 +11,8 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .permissions import IsAdmin, IsSelfOrAdmin
-from .serializers import UserSerializer
+from users.permissions import IsAdmin, IsSelfOrAdmin
+from users.serializers import UserSerializer
 
 User = get_user_model()
 
