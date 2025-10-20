@@ -1,8 +1,9 @@
+from adrf.serializers import ModelSerializer, Serializer
 from rest_framework import serializers
 from search.models import SearchResult
 
 
-class AssistantPanelSerializer(serializers.Serializer):
+class AssistantPanelSerializer(Serializer):
     """
     Serializes data for the assistant panel.
     """
@@ -14,7 +15,7 @@ class AssistantPanelSerializer(serializers.Serializer):
     )
 
 
-class SearchResultSerializer(serializers.ModelSerializer):
+class SearchResultSerializer(ModelSerializer):
     """
     Serializes the SearchResult model for API responses.
     """

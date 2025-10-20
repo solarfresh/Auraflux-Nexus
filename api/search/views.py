@@ -1,4 +1,4 @@
-from rest_framework.views import APIView
+from adrf.views import APIView
 from rest_framework.response import Response
 from search.serializers import AssistantPanelSerializer, SearchResultSerializer
 
@@ -7,7 +7,7 @@ class AssistantPanelView(APIView):
     """
     Handles requests for the assistant panel data.
     """
-    def post(self, request, *args, **kwargs):
+    async def post(self, request, *args, **kwargs):
         query = request.data.get('query', '').lower()
 
         # Mock data for the assistant panel
@@ -50,7 +50,7 @@ class SearchView(APIView):
     """
     Handles search requests and returns mock data based on the query.
     """
-    def post(self, request, *args, **kwargs):
+    async def post(self, request, *args, **kwargs):
         query = request.data.get('query', '').lower()
 
         # Mock data based on different queries

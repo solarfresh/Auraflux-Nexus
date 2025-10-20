@@ -67,6 +67,7 @@ TEMPLATES = [
     },
 ]
 
+ASGI_APPLICATION = 'core.asgi.application'
 WSGI_APPLICATION = 'core.wsgi.application'
 
 # CORS settings

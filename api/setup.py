@@ -72,12 +72,14 @@ setup(
         }
     ),
     install_requires=[
+        'adrf==0.1.10',
         'Django==5.2.5',
         'djangorestframework==3.16.1',
         'djangorestframework_simplejwt==5.5.1',
         'drf-spectacular==0.28.0',
         'drf-spectacular-sidecar==2025.8.1',
-        'psycopg==3.2.9'
+        'psycopg==3.2.9',
+        'uvicorn[standard]==0.38.0'
     ],
 )
 

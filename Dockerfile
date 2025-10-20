@@ -54,4 +54,4 @@ ENV DJANGO_SETTINGS_MODULE core.settings
 EXPOSE 8000
 
 # Run database migrations and start the Gunicorn server
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "core.wsgi"]
+CMD ["uvicorn", "core.asgi:application", "--host", "0.0.0.0", "--port", "8000"]
