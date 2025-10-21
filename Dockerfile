@@ -14,14 +14,16 @@ WORKDIR /api
 # Install system dependencies needed for PostgreSQL
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libpq-dev \
     gcc \
+    git \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install Python dependencies
 RUN pip install --no-cache-dir pip -U && \
     pip install --no-cache-dir cython setuptools && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir git+https://github.com/solarfresh/auraflux-core.git@refactor/redesign#egg=auraflux-core
 
 # Build the Cython extensions
 RUN python setup.py build_ext --inplace

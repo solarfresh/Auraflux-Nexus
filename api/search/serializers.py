@@ -21,4 +21,4 @@ class SearchResultSerializer(ModelSerializer):
     """
     class Meta:
         model = SearchResult
-        fields = ['title', 'description', 'link', 'source']
+        fields = ['title', 'snippet', 'url', 'source']
