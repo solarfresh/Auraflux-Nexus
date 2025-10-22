@@ -14,14 +14,16 @@ WORKDIR /api
 # Install system dependencies needed for PostgreSQL
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libpq-dev \
     gcc \
+    git \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install Python dependencies
 RUN pip install --no-cache-dir pip -U && \
     pip install --no-cache-dir cython setuptools && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir git+https://github.com/solarfresh/auraflux-core.git@refactor/redesign#egg=auraflux-core
 
 # Build the Cython extensions
 RUN python setup.py build_ext --inplace
@@ -54,4 +56,4 @@ ENV DJANGO_SETTINGS_MODULE core.settings
 EXPOSE 8000
 
 # Run database migrations and start the Gunicorn server
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "core.wsgi"]
+CMD ["uvicorn", "core.asgi:application", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,4 +1,5 @@
 # Application specific
+docker-compose.override.yml
 docker-vars.override.env
 
 # Byte-compiled / optimized / DLL files

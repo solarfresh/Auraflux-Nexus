@@ -4,7 +4,7 @@ services:
   postgres:
     image: postgres:17
     container_name: auraflux_postgres
-    restart: always
+    # restart: always
     volumes:
       - auraflux_data:/var/lib/postgresql/data/
     env_file:
@@ -20,8 +20,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: auraflux_nexus
-    restart: always
-    command: python manage.py runserver 0.0.0.0:8000
+    # restart: always
+    command: uvicorn core.asgi:application --host 0.0.0.0 --port 8000
     volumes:
       - ./api:/api
     ports:
