@@ -1,6 +1,8 @@
 from adrf.views import APIView
 from django.conf import settings
 from django.contrib.auth import aauthenticate, get_user_model
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.generics import GenericAPIView
@@ -13,15 +15,46 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from users.permissions import IsAdmin, IsSelfOrAdmin
 from users.serializers import UserSerializer
 
+from .serializers import LoginRequestSerializer, LoginResponseSerializer
+
 User = get_user_model()
 
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        summary="User Login and JWT Cookie Generation",
+        description="Authenticates the user and sets Access and Refresh JWT tokens in **HttpOnly cookies**.",
+        # 1. Request Body Schema
+        request=LoginRequestSerializer,
+        # 2. Response Schema (Success and Failure)
+        responses={
+            200: LoginResponseSerializer,
+            400: OpenApiTypes.OBJECT, # Simple error object
+        },
+        # 3. Examples for clarity
+        examples=[
+            OpenApiExample(
+                'Successful Login',
+                value={'message': 'Login successful.', 'username': 'testuser'},
+                response_only=True,
+                status_codes=['200']
+            ),
+            OpenApiExample(
+                'Invalid Credentials',
+                value={'error': 'Invalid credentials.'},
+                response_only=True,
+                status_codes=['400']
+            ),
+        ]
+    )
     async def post(self, request):
         username = request.data.get('username')
         password = request.data.get('password')
+
+        input_serializer = LoginRequestSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
 
         user = await aauthenticate(request, username=username, password=password)
 
