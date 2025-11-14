@@ -56,7 +56,11 @@ class SearchView(APIView):
     async def post(self, request, *args, **kwargs):
         query = request.data.get('query', '').strip()
 
-        google_search_tool = apps.get_app_config('search').google_search_tool
+        search_app_config = apps.get_app_config('search')
+        google_search_tool = getattr(search_app_config, 'google_search_tool', None)
+        if not google_search_tool:
+            raise AttributeError("google_search_tool not found in search app configuration")
+
         search_results_string = await google_search_tool.run(query=query)
         search_results = json.loads(search_results_string)
 
