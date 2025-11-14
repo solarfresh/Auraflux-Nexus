@@ -34,8 +34,9 @@ INSTALLED_APPS = [
     'drf_spectacular_sidecar',
 
     # Local apps
-    'users.apps.UsersConfig',
     'search.apps.SearchConfig',
+    'users.apps.UsersConfig',
+    'workflows.apps.WorkflowsConfig'
 ]
 
 MIDDLEWARE = [
