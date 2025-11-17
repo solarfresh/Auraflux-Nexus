@@ -5,6 +5,10 @@ from django.conf import settings
 
 
 class SearchConfig(AppConfig):
+    """
+    The responsibility is Data Acquisition (querying Google and retrieving raw results).
+    """
+
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'search'
     label = 'search'

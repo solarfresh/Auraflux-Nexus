@@ -1,6 +1,5 @@
-from adrf.serializers import ModelSerializer, Serializer
+from adrf.serializers import Serializer
 from rest_framework import serializers
-from search.models import SearchResult
 
 
 class AssistantPanelSerializer(Serializer):
@@ -15,10 +14,11 @@ class AssistantPanelSerializer(Serializer):
     )
 
 
-class SearchResultSerializer(ModelSerializer):
+class SearchResultSerializer(Serializer):
     """
     Serializes the SearchResult model for API responses.
     """
-    class Meta:
-        model = SearchResult
-        fields = ['title', 'snippet', 'url', 'source']
+    title = serializers.CharField(max_length=255)
+    snippet = serializers.CharField()
+    url = serializers.URLField()
+    source = serializers.CharField(max_length=100)
