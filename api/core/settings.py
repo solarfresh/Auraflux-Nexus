@@ -123,7 +123,8 @@ AUTH_USER_MODEL = 'users.User'
 # Django Rest Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'auth.authentication.JWTCookieAuthentication',
+        # 'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
@@ -133,7 +134,9 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'Interactive Search API',
     'DESCRIPTION': 'Documentation for the Interactive Search API.',
     'VERSION': '0.1.0',
-    'SERVE_INCLUDE_SCHEMA': False,
+    'SERVE_INCLUDE_SCHEMA': True,
+    'SERVE_PERMISSIONS': ['rest_framework.permissions.AllowAny'],
+    'SERVE_AUTHENTICATION': [], # This ensures the /swagger-ui/ page itself does not run your custom auth.
     'SWAGGER_UI_DIST_PATH': 'drf_spectacular_sidecar/swagger-ui/', # This is an optional setting to specify where the swagger UI is located.
 }
 

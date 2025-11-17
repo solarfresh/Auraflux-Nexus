@@ -33,7 +33,7 @@ class WorkflowStateView(APIView):
 
             # Create a temporary, unsaved default instance
             # default_state = WorkflowState(user=user)
-            default_state = WorkflowState()
+            default_state = WorkflowState(user=user)
 
             # Serialize the default instance to get the desired JSON structure
             # (current_step='SEARCH', all data fields empty/default dicts)

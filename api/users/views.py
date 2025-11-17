@@ -23,6 +23,10 @@ User = get_user_model()
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
+    # FIX: Explicitly disable all authentication classes for this view.
+    # This overrides the global DEFAULT_AUTHENTICATION_CLASSES setting.
+    authentication_classes = []
+
     @extend_schema(
         summary="User Login and JWT Cookie Generation",
         description="Authenticates the user and sets Access and Refresh JWT tokens in **HttpOnly cookies**.",
