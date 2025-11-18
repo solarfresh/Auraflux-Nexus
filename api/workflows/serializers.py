@@ -1,7 +1,16 @@
-from adrf.serializers import ModelSerializer
+from adrf.serializers import ModelSerializer, Serializer
 from rest_framework import serializers
 
 from .models import KnowledgeSource, WorkflowState
+
+
+class DataLockSerializer(Serializer):
+    """
+    Serializer for the Data Lock signal. No input fields required,
+    but ensures a valid POST request is received.
+    """
+    # This field isn't mandatory but serves as a clear acknowledgment of the action.
+    success = serializers.BooleanField(read_only=True, default=True)
 
 
 class KnowledgeSourceSerializer(ModelSerializer):
