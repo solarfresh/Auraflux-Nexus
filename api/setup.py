@@ -46,7 +46,7 @@ for package in PACKAGE_LIST:
                 os.remove(os.path.join(root, fname))
                 continue
 
-            if (not fname.lower().endswith('.py')) or (fname == '__init__.py'):
+            if (not fname.lower().endswith('.py')) or (fname == '__init__.py') or ('migrations' in root):
                 continue
 
             pyx_file = f'{os.path.splitext(fname)[0]}.pyx'
@@ -70,17 +70,7 @@ setup(
             'binding': True,
             'annotation_typing': False
         }
-    ),
-    install_requires=[
-        'adrf==0.1.10',
-        'Django==5.2.5',
-        'djangorestframework==3.16.1',
-        'djangorestframework_simplejwt==5.5.1',
-        'drf-spectacular==0.28.0',
-        'drf-spectacular-sidecar==2025.8.1',
-        'psycopg==3.2.9',
-        'uvicorn[standard]==0.38.0',
-    ],
+    )
 )
 
 print("remove *.pyx, *.pyc, and *.c file")

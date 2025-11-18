@@ -15,6 +15,15 @@ services:
     networks:
       - auraflux_network
 
+  redis:
+    image: redis:8.0.5-alpine3.21
+    container_name: auraflux_redis
+    # restart: always
+    ports:
+      - "6379:6379" # Expose Redis port (optional, but useful for debugging)
+    networks:
+      - auraflux_network
+
   nexus:
     build:
       context: .
