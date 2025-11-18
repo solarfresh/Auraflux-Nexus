@@ -1,13 +1,13 @@
 from adrf.views import APIView
-from asgiref.sync import sync_to_async
+from core.utils import get_user_search_cache_key
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import KnowledgeSource, WorkflowState
+from .models import WorkflowState
 from .serializers import DataLockSerializer, WorkflowStateSerializer
-from .utils import get_or_create_workflow_state, update_workflow_state
+from .utils import get_or_create_workflow_state, update_workflow_state, get_and_persist_cached_results
 
 User = get_user_model()
 
@@ -39,41 +39,33 @@ class DataLockAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Check if knowledge sources exist before locking (Optional but good validation)
-        knowledge_sources_exist = await sync_to_async(
-            KnowledgeSource.objects.filter(workflow_state=workflow_state).exists
-        )()
+        cache_key = get_user_search_cache_key(user.id)
 
-        if not knowledge_sources_exist:
+        try:
+            data_persisted = await get_and_persist_cached_results(user, cache_key)
+        except Exception as e:
+            # Catch database or transactional errors from within the utility
             return Response(
-                {"error": "Cannot lock data. Please execute a search and gather results first."},
+                {"error": f"Database transaction failed during data lock: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # Final Validation Check (Did the cache contain data?)
+        if not data_persisted:
+            return Response(
+                {"error": "Cannot lock data. No search results found in temporary storage (cache). Please run a search first."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Perform Atomic State Transition
-        try:
-            updated_state = await update_workflow_state(
-                user=user,
-                current_step='SCOPE'
-            )
-        except WorkflowState.DoesNotExist:
-            return Response(
-                {"error": "Workflow state disappeared during transition."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        except Exception as e:
-            # Catch any database or transactional errors
-            return Response(
-                {"error": f"Database error during state transition: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        # Retrieve the updated state for the response (The utility already changed it to 'SCOPE')
+        updated_state = await get_or_create_workflow_state(user)
 
         # Return Success Response
         serializer = DataLockSerializer(data={'success': True})
         serializer.is_valid(raise_exception=True)
 
         return Response(
-            {"message": "Knowledge Base locked successfully.", "new_step": updated_state},
+            {"message": "Knowledge Base locked successfully.", "new_step": updated_state.current_step},
             status=status.HTTP_200_OK
         )
 

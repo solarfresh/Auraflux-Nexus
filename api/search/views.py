@@ -2,13 +2,12 @@ import json
 
 from adrf.views import APIView
 from asgiref.sync import sync_to_async
+from core.utils import get_user_search_cache_key
 from django.apps import apps
 from django.core.cache import cache
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from search.serializers import AssistantPanelSerializer, SearchResultSerializer
-
-from .utils import get_user_cache_key
 
 
 class AssistantPanelView(APIView):
@@ -67,7 +66,7 @@ class SearchView(APIView):
         if not query:
             return Response({"error": "Search query is required."}, status=400)
 
-        cache_key = get_user_cache_key(user.id)
+        cache_key = get_user_search_cache_key(user.id)
 
         # Check Cache for Existing Results
         # Cache access is synchronous, so we must wrap it.
