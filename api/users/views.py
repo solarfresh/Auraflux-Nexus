@@ -1,6 +1,8 @@
 from adrf.views import APIView
 from django.conf import settings
 from django.contrib.auth import aauthenticate, get_user_model
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import status
@@ -16,6 +18,7 @@ from users.permissions import IsAdmin, IsSelfOrAdmin
 from users.serializers import UserSerializer
 
 from .serializers import LoginRequestSerializer, LoginResponseSerializer
+from .utils import get_refreshed_tokens_sync
 
 User = get_user_model()
 
@@ -70,7 +73,7 @@ class LoginView(APIView):
             # Prepare the response
             response = Response({
                 'message': 'Login successful.',
-                'username': user.username,
+                'username': getattr(user, 'username')
             }, status=status.HTTP_200_OK)
 
             # Set cookies with HttpOnly and secure flags
@@ -98,23 +101,23 @@ class LoginView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
 
+# @method_decorator(csrf_exempt, name='dispatch') # Apply csrf_exempt to the view
 class RefreshTokenView(APIView):
-    def post(self, request):
+    # 🎯 The essential fix: allow the request to bypass standard authentication
+    permission_classes = [AllowAny]
+
+    # FIX: Explicitly disable all authentication classes for this view.
+    # This overrides the global DEFAULT_AUTHENTICATION_CLASSES setting.
+    authentication_classes = []
+
+    async def post(self, request):
         refresh_token = request.COOKIES.get(settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'])
 
         if not refresh_token:
             raise AuthenticationFailed('Refresh token is missing.')
 
         try:
-            # Use Simple JWT's built-in serializer to validate the refresh token
-            serializer = TokenRefreshSerializer(data={'refresh': refresh_token})
-            serializer.is_valid(raise_exception=True)
-            # validated_data can be None in some type-checking scenarios; guard and use .get
-            validated = getattr(serializer, 'validated_data', None) or {}
-            new_access_token = validated.get('access')
-            if not new_access_token:
-                # If access token is missing after validation, treat as authentication failure
-                raise AuthenticationFailed('Failed to refresh access token.')
+            new_access_token, new_refresh_token = await get_refreshed_tokens_sync(refresh_token)
 
             # Prepare the response and set the new access token cookie
             response = Response({'message': 'Access token refreshed.'}, status=status.HTTP_200_OK)
@@ -126,12 +129,23 @@ class RefreshTokenView(APIView):
                 httponly=bool(settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY']),
                 samesite=str(settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'])
             )
+
+            if new_refresh_token:
+                response.set_cookie(
+                    key=str(settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH']),
+                    value=str(new_refresh_token),
+                    expires=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'],
+                    secure=bool(settings.SIMPLE_JWT['AUTH_COOKIE_SECURE']),
+                    httponly=bool(settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY']),
+                    samesite=str(settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'])
+                )
+
             return response
 
-        except AuthenticationFailed:
+        except AuthenticationFailed as e:
             # Re-raise authentication failures unchanged
             raise
-        except Exception:
+        except Exception as e:
             raise AuthenticationFailed('Refresh token is invalid or expired.')
 
 
