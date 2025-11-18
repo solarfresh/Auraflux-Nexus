@@ -90,6 +90,22 @@ DATABASES = {
     }
 }
 
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        # Ensure you replace this with your actual Redis connection string
+        "LOCATION": os.environ.get('REDIS_URI', "redis://127.0.0.1:6379/1"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            # Optional: Set a default timeout (in seconds) for all cache entries
+            "TIMEOUT": 60 * 30, # 30 minutes cache duration
+        }
+    }
+}
+
+# The cache key prefix ensures our search results don't conflict with other cache uses.
+SEARCH_CACHE_KEY_PREFIX = "user_search_results"
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {

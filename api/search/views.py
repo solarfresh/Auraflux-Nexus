@@ -1,7 +1,11 @@
 import json
 
 from adrf.views import APIView
+from asgiref.sync import sync_to_async
+from core.utils import get_user_search_cache_key
 from django.apps import apps
+from django.core.cache import cache
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from search.serializers import AssistantPanelSerializer, SearchResultSerializer
 
@@ -53,8 +57,26 @@ class SearchView(APIView):
     """
     Handles search requests and returns mock data based on the query.
     """
+    permission_classes = [IsAuthenticated]
+
     async def post(self, request, *args, **kwargs):
+        user = request.user
         query = request.data.get('query', '').strip()
+
+        if not query:
+            return Response({"error": "Search query is required."}, status=400)
+
+        cache_key = get_user_search_cache_key(user.id)
+
+        # Check Cache for Existing Results
+        # Cache access is synchronous, so we must wrap it.
+        cached_data = await sync_to_async(cache.get)(cache_key)
+
+        if cached_data:
+            # Check if the cached query matches the current request's query
+            if cached_data.get('query') == query:
+                # Return cached data if the query hasn't changed
+                return Response(cached_data.get('results'))
 
         search_app_config = apps.get_app_config('search')
         google_search_tool = getattr(search_app_config, 'google_search_tool', None)
@@ -66,4 +88,12 @@ class SearchView(APIView):
 
         serializer = SearchResultSerializer(data=search_results, many=True)
         serializer.is_valid(raise_exception=True)
-        return Response(serializer.validated_data)
+        validated_results = serializer.validated_data
+
+        data_to_cache = {
+            'query': query,
+            'results': validated_results,
+        }
+        await sync_to_async(cache.set)(cache_key, data_to_cache)
+
+        return Response(validated_results)
