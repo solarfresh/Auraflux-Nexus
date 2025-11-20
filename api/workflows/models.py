@@ -39,7 +39,7 @@ class WorkflowState(models.Model):
 
     # Data from Step 2: Scope Definition
     scope_data = models.JSONField(
-        default=dict,
+        default=None,
         help_text='Stores dichotomy, roles, and focused question.'
     )
 
