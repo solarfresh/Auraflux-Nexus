@@ -48,6 +48,7 @@ class WorkflowStateSerializer(serializers.ModelSerializer):
         model = WorkflowState
         fields = (
             'current_step',
+            'query',
             'scope_data',
             'analysis_data',
             'knowledge_sources',  # Nested sources list

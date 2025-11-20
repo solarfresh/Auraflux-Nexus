@@ -37,6 +37,13 @@ class WorkflowState(models.Model):
         help_text='The current active step in the workflow.'
     )
 
+    # Search result fields
+    query = models.CharField(
+        max_length=255,
+        db_index=True,
+        help_text="The search query that initially retrieved this result."
+    )
+
     # Data from Step 2: Scope Definition
     scope_data = models.JSONField(
         default=None,
@@ -45,7 +52,7 @@ class WorkflowState(models.Model):
 
     # Placeholder for future analysis results
     analysis_data = models.JSONField(
-        default=dict,
+        default=None,
         help_text='Stores Agent opinions, conflict summaries, and final output data.'
     )
 

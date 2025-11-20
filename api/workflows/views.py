@@ -1,3 +1,5 @@
+import logging
+
 from adrf.views import APIView
 from core.utils import get_user_search_cache_key
 from django.contrib.auth import get_user_model
@@ -7,7 +9,8 @@ from rest_framework.response import Response
 
 from .models import WorkflowState
 from .serializers import DataLockSerializer, WorkflowStateSerializer
-from .utils import get_or_create_workflow_state, update_workflow_state, get_and_persist_cached_results
+from .utils import (get_and_persist_cached_results,
+                    get_or_create_workflow_state, update_workflow_state)
 
 User = get_user_model()
 
@@ -21,12 +24,17 @@ class DataLockAPIView(APIView):
 
     async def post(self, request, *args, **kwargs):
         user = request.user
+        query = request.data.get('query', '').strip()
+
+        if not query:
+            return Response({"error": "Query parameter is required."}, status=400)
 
         # Retrieve the Workflow State
         try:
             workflow_state = await get_or_create_workflow_state(user)
         except Exception:
             # Handle case where user has no state (shouldn't happen if state is created on user login/signup)
+            logging.error("Failed to retrieve or create workflow state for user ID %s", user.id)
             return Response(
                 {"error": "Could not retrieve or create workflow state."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -58,7 +66,12 @@ class DataLockAPIView(APIView):
             )
 
         # Retrieve the updated state for the response (The utility already changed it to 'SCOPE')
-        updated_state = await get_or_create_workflow_state(user)
+        try:
+            updated_state = await update_workflow_state(user, query=query)
+        except Exception as e:
+            logging.error("Failed to retrieve updated workflow state after data lock: %s", str(e))
+            return Response(
+                {"error": "Failed to retrieve updated workflow state after data lock."},)
 
         # Return Success Response
         serializer = DataLockSerializer(data={'success': True})

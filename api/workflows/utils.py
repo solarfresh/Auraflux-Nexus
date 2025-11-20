@@ -127,7 +127,7 @@ def update_workflow_state(user: "User", **kwargs) -> WorkflowState:
             setattr(state, field, value)
         else:
             # Optional: Log a warning if an invalid field is passed
-            print(f"Warning: WorkflowState model has no field named '{field}'")
+            logging.warning(f"Warning: WorkflowState model has no field named '{field}'")
 
     # 3. Save the changes
     state.save()
