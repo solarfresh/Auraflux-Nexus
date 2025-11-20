@@ -48,6 +48,9 @@ COPY --from=builder /api /api
 # Set working directory
 WORKDIR /api
 
+# Create necessary directories
+RUN mkdir -p /auraflux/logs/
+
 # Set environment variables
 ENV PYTHONUNBUFFERED 1
 ENV DJANGO_SETTINGS_MODULE core.settings

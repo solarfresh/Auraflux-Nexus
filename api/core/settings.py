@@ -68,6 +68,44 @@ TEMPLATES = [
     },
 ]
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format':
+            ('[%(levelname)s|%(name)s] ASTime:%(asctime)s, '
+             '%(module)s#L%(lineno)d > %(funcName)s, '
+             'Message: %(message)s')
+        },
+        'simple': {
+            'format': '%(levelname)s %(message)s'
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'logfile': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': '/auraflux/logs/default.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        '': {
+            'handlers': ['console', 'logfile'],
+            'level': 'INFO'
+        },
+        'default': {
+            'handlers': ['console', 'logfile'],
+            'level': 'INFO'
+        },
+    },
+}
+
 ASGI_APPLICATION = 'core.asgi.application'
 WSGI_APPLICATION = 'core.wsgi.application'
 
