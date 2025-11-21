@@ -8,7 +8,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import WorkflowState
-from .serializers import DataLockSerializer, WorkflowStateSerializer
+from .serializers import (DataLockSerializer, DichotomySuggestionSerializer,
+                          WorkflowStateSerializer)
 from .utils import (get_and_persist_cached_results,
                     get_or_create_workflow_state, update_workflow_state)
 
@@ -81,6 +82,67 @@ class DataLockAPIView(APIView):
             {"message": "Knowledge Base locked successfully.", "new_step": updated_state.current_step},
             status=status.HTTP_200_OK
         )
+
+
+class DichotomySuggestionAPIView(APIView):
+    """
+    Retrieves dynamically suggested strategic dichotomies (tensions)
+    based on the user's locked KnowledgeSource search results.
+    """
+    permission_classes = [IsAuthenticated]
+
+    # Making this method async prepares it for the actual RAG/computation logic later
+    async def get(self, request, *args, **kwargs):
+        user = request.user
+
+        # Retrieve the current Workflow State
+        try:
+            workflow_state = await get_or_create_workflow_state(user)
+        except WorkflowState.DoesNotExist:
+            return Response(
+                {"error": "Workflow state not found. Please start a search first."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check Precondition
+        # Dichotomies should only be suggested once the data is locked and step is 'SCOPE'
+        if workflow_state.current_step not in ['SCOPE', 'COLLECTION']:
+            return Response(
+                {"error": f"Dichotomy suggestion is only available in the 'SCOPE' step. Current step: {workflow_state.current_step}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # MOCK DATA GENERATION (To be replaced by RAG Analysis Utility)
+        # In a real scenario, you'd fetch the KnowledgeSource records here and pass
+        # them to an LLM/RAG analysis service to generate these suggestions.
+        # Example of fetching locked sources:
+        # knowledge_sources = [ks async for ks in KnowledgeSource.objects.filter(workflow_state=workflow_state)]
+        # suggestions = await analyze_sources_for_dichotomies(knowledge_sources)
+
+        suggestions = [
+            {
+                "id": "speed_security",
+                "name": "Speed vs. Security",
+                "description": "Balancing rapid deployment/iteration with robust defense and compliance.",
+                "roles": ["CTO (Speed Focus)", "Legal/Ethics Agent (Security Focus)", "Strategy Analyst"],
+            },
+            {
+                "id": "innovation_regulation",
+                "name": "Innovation vs. Regulation",
+                "description": "Pushing boundaries with new tech versus maintaining strict adherence to rules.",
+                "roles": ["Head of R&D", "Chief Compliance Officer", "Finance Director"],
+            },
+            {
+                "id": "centralization_autonomy",
+                "name": "Centralization vs. Autonomy",
+                "description": "Managing control/efficiency from HQ versus empowering local team decision-making.",
+                "roles": ["COO", "Regional Manager", "HR Lead"],
+            },
+        ]
+
+        # 4. Serialize and Return
+        serializer = DichotomySuggestionSerializer(suggestions, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class WorkflowStateView(APIView):
