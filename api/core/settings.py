@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'drf_spectacular_sidecar',
 
     # Local apps
+    'realtime.apps.RealtimeConfig',
     'search.apps.SearchConfig',
     'users.apps.UsersConfig',
     'workflows.apps.WorkflowsConfig'
@@ -141,6 +142,17 @@ CACHES = {
     }
 }
 
+CELERY = {
+    'name': 'async_task',
+    'namespace': 'CELERY',
+    'broker': os.getenv(
+        'CELERY_BROKER', 'redis://127.0.0.1:6379/0'
+    ),
+    'backend': os.getenv(
+        'CELERY_BACKEND', 'redis://127.0.0.1:6379/0'
+    )
+}
+
 # The cache key prefix ensures our search results don't conflict with other cache uses.
 SEARCH_CACHE_KEY_PREFIX = "user_search_results"
 
@@ -220,4 +232,11 @@ GOOGLE_SEARCH_CONFIG = {
     "google_search_engine_id": os.environ.get('GOOGLE_SEARCH_ENGINE_ID', ''),
     "google_search_engine_api_key": os.environ.get('GOOGLE_SEARCH_ENGINE_API_KEY', ''),
     "google_search_engine_base_url": os.environ.get('GOOGLE_SEARCH_ENGINE_BASE_URL', 'https://customsearch.googleapis.com/customsearch/v1')
+}
+
+AGENT_HANDLER_MAP = {
+    # The workflows app only knows this string is a path
+    "DichotomySuggester": "agents.tasks.handle_dichotomy_suggestion",
+    # Add future roles here
+    # "CTO Opinion Generator": "agents.tasks.handle_cto_opinion",
 }
