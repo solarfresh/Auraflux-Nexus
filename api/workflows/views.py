@@ -7,9 +7,10 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import WorkflowState
+from .models import KnowledgeSource, WorkflowState
 from .serializers import (DataLockSerializer, DichotomySuggestionSerializer,
                           WorkflowStateSerializer)
+from .tasks import dispatch_agent_task
 from .utils import (get_and_persist_cached_results,
                     get_or_create_workflow_state, update_workflow_state)
 
@@ -112,12 +113,45 @@ class DichotomySuggestionAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # MOCK DATA GENERATION (To be replaced by RAG Analysis Utility)
-        # In a real scenario, you'd fetch the KnowledgeSource records here and pass
-        # them to an LLM/RAG analysis service to generate these suggestions.
-        # Example of fetching locked sources:
-        # knowledge_sources = [ks async for ks in KnowledgeSource.objects.filter(workflow_state=workflow_state)]
-        # suggestions = await analyze_sources_for_dichotomies(knowledge_sources)
+        # Check Cache (The primary read operation)
+        if workflow_state.suggested_dichotomies_cache:
+            # Data is already computed and cached. Return it immediately.
+            suggestions = workflow_state.suggested_dichotomies_cache
+            serializer = DichotomySuggestionSerializer(suggestions, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # Cache Miss: Trigger Asynchronous Computation
+
+        # We need the source text to pass to the agent, but we must handle the case
+        # where KnowledgeSource records are not present (which should be caught
+        # by the DataLock API, but is a safe check here).
+        try:
+            # Fetch all snippets from the locked knowledge sources
+            knowledge_sources_qs = KnowledgeSource.objects.filter(workflow_state=workflow_state)
+            knowledge_sources_text = "\n\n---\n\n".join(
+                [ks async for ks in knowledge_sources_qs.values_list('snippet', flat=True)]
+            )
+        except Exception as e:
+            logging.error("Failed to fetch knowledge sources for workflow state %s: %s", workflow_state.id, str(e))
+            return Response(
+                {"error": "Failed to retrieve required knowledge base data."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        if not knowledge_sources_text.strip():
+            return Response(
+                {"error": "No locked knowledge sources found to generate suggestions from."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Launch the Decoupled Dispatcher Task
+        # This task will run the GenericAgent with the specific configuration
+        # and write the result back to workflow_state.suggested_dichotomies_cache.
+        dispatch_agent_task.delay(  # Access the task if dispatch_agent_task is a list
+            agent_role_name="DichotomySuggester",
+            workflow_state_id=workflow_state.user,  # Use the actual workflow state ID
+            input_data=knowledge_sources_text
+        )
 
         suggestions = [
             {
@@ -140,7 +174,7 @@ class DichotomySuggestionAPIView(APIView):
             },
         ]
 
-        # 4. Serialize and Return
+        # Serialize and Return
         serializer = DichotomySuggestionSerializer(suggestions, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 

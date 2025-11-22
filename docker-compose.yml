@@ -24,7 +24,7 @@ services:
     networks:
       - auraflux_network
 
-  nexus:
+  nexus: &backend
     build:
       context: .
       dockerfile: Dockerfile
@@ -38,8 +38,21 @@ services:
     depends_on:
       - postgres
     env_file:
-      - ./docker-vars.env # Specify the path to the environment file to load
+      - ./docker-vars.env
       - ./docker-vars.override.env
+    networks:
+      - auraflux_network
+
+  worker:
+    <<: *backend
+    container_name: auraflux_worker
+    env_file:
+      - ./docker-vars.env
+      - ./docker-vars.override.env
+    ports: []
+    volumes:
+      - ./api:/api
+    command: celery -A core.celery_app:celery_app worker -c 2 -l info
     networks:
       - auraflux_network
 
