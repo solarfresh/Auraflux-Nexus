@@ -44,6 +44,13 @@ class WorkflowState(models.Model):
         help_text="The search query that initially retrieved this result."
     )
 
+    suggested_dichotomies_cache = models.JSONField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text="Transient cache for AI-generated dichotomy suggestions (JSON format)."
+    )
+
     # Data from Step 2: Scope Definition
     scope_data = models.JSONField(
         default=None,

@@ -3,6 +3,8 @@ import logging
 from adrf.views import APIView
 from core.utils import get_user_search_cache_key
 from django.contrib.auth import get_user_model
+from messaging.constants import DICHOTOMY_SUGGESTION_REQUESTED
+from messaging.tasks import publish_event  # CRITICAL: Import from new app
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -10,7 +12,6 @@ from rest_framework.response import Response
 from .models import KnowledgeSource, WorkflowState
 from .serializers import (DataLockSerializer, DichotomySuggestionSerializer,
                           WorkflowStateSerializer)
-from .tasks import dispatch_agent_task
 from .utils import (get_and_persist_cached_results,
                     get_or_create_workflow_state, update_workflow_state)
 
@@ -132,7 +133,7 @@ class DichotomySuggestionAPIView(APIView):
                 [ks async for ks in knowledge_sources_qs.values_list('snippet', flat=True)]
             )
         except Exception as e:
-            logging.error("Failed to fetch knowledge sources for workflow state %s: %s", workflow_state.id, str(e))
+            logging.error("Failed to fetch knowledge sources for workflow state %s: %s", workflow_state.pk, str(e))
             return Response(
                 {"error": "Failed to retrieve required knowledge base data."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -144,39 +145,24 @@ class DichotomySuggestionAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Launch the Decoupled Dispatcher Task
-        # This task will run the GenericAgent with the specific configuration
-        # and write the result back to workflow_state.suggested_dichotomies_cache.
-        dispatch_agent_task.delay(  # Access the task if dispatch_agent_task is a list
-            agent_role_name="DichotomySuggester",
-            workflow_state_id=workflow_state.user,  # Use the actual workflow state ID
-            input_data=knowledge_sources_text
+        event_payload = {
+            "workflow_state_id": workflow_state.pk,
+            "user_id": user.id,
+            "agent_role_name": "DichotomysSuggester",
+            "input_data": knowledge_sources_text
+        }
+
+        publish_event.delay(
+            event_type=DICHOTOMY_SUGGESTION_REQUESTED,
+            payload=event_payload
         )
+        logging.info("Published %s event for workflow ID: %s", DICHOTOMY_SUGGESTION_REQUESTED, workflow_state.pk)
 
-        suggestions = [
-            {
-                "id": "speed_security",
-                "name": "Speed vs. Security",
-                "description": "Balancing rapid deployment/iteration with robust defense and compliance.",
-                "roles": ["CTO (Speed Focus)", "Legal/Ethics Agent (Security Focus)", "Strategy Analyst"],
-            },
-            {
-                "id": "innovation_regulation",
-                "name": "Innovation vs. Regulation",
-                "description": "Pushing boundaries with new tech versus maintaining strict adherence to rules.",
-                "roles": ["Head of R&D", "Chief Compliance Officer", "Finance Director"],
-            },
-            {
-                "id": "centralization_autonomy",
-                "name": "Centralization vs. Autonomy",
-                "description": "Managing control/efficiency from HQ versus empowering local team decision-making.",
-                "roles": ["COO", "Regional Manager", "HR Lead"],
-            },
-        ]
-
-        # Serialize and Return
-        serializer = DichotomySuggestionSerializer(suggestions, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        # 3. Return Processing Status
+        return Response(
+            {"status": "processing", "message": "AI generation request submitted. Please wait for the real-time update."},
+            status=status.HTTP_202_ACCEPTED
+        )
 
 
 class WorkflowStateView(APIView):

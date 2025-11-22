@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'drf_spectacular_sidecar',
 
     # Local apps
+    'messaging.apps.MessagingConfig',
     'realtime.apps.RealtimeConfig',
     'search.apps.SearchConfig',
     'users.apps.UsersConfig',
@@ -153,6 +154,21 @@ CELERY = {
     )
 }
 
+CELERY_TASK_ROUTES = {
+    # Routing the Request Event to the Agent Listener
+    'DICHOTOMY_SUGGESTION_REQUESTED': {
+        'queue': 'agent_processing',
+        'exchange': 'events',
+        'routing_key': 'DICHOTOMY_SUGGESTION_REQUESTED',
+    },
+    # Routing the Completion Event to the Workflow Listener
+    'DICHOTOMY_SUGGESTION_COMPLETED': {
+        'queue': 'workflow_persistence',
+        'exchange': 'events',
+        'routing_key': 'DICHOTOMY_SUGGESTION_COMPLETED',
+    },
+}
+
 # The cache key prefix ensures our search results don't conflict with other cache uses.
 SEARCH_CACHE_KEY_PREFIX = "user_search_results"
 
@@ -239,4 +255,12 @@ AGENT_HANDLER_MAP = {
     "DichotomySuggester": "agents.tasks.handle_dichotomy_suggestion",
     # Add future roles here
     # "CTO Opinion Generator": "agents.tasks.handle_cto_opinion",
+}
+
+MESSAGING_ROUTES = {
+    'agents.tasks.handle_suggestion_request_event': {
+        'queue': 'event_bus_queue',
+        'routing_key': 'DICHOTOMY_SUGGESTION_REQUESTED',
+    },
+    # ... and so on
 }

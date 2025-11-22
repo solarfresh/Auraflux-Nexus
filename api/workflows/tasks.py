@@ -1,55 +1,72 @@
-import importlib
 import logging
 
 from core.celery_app import celery_app
-from django.conf import settings
+from messaging.constants import DICHOTOMY_SUGGESTION_COMPLETED
+from realtime.utils import send_ws_notification
+from workflows.models import WorkflowState
 
 logger = logging.getLogger(__name__)
 
-@celery_app.task(name='dispatch_agent_task')
-def dispatch_agent_task(agent_role_name: str, workflow_state_id: int, input_data: str):
+@celery_app.task(name='handle_suggestion_completion_event', ignore_result=True)
+def handle_suggestion_completion_event(event_type: str, payload: dict):
     """
-    A generic dispatcher task executed by the worker fleet.
-    It dynamically loads and executes the specific agent handler based on the role name
-    defined in the centralized AGENT_HANDLER_MAP setting.
+    Consumer task for the DICHOTOMY_SUGGESTION_COMPLETED event.
+
+    1. Updates the WorkflowState cache (Persistence).
+    2. Sends a WebSocket notification to the user (Real-time update).
+
+    This function couples to the WorkflowState model and the realtime utility.
     """
+    task_id = handle_suggestion_completion_event.request.id
 
-    # Retrieve the AGENT_HANDLER_MAP from settings
-    # This setting must be defined in settings.py and map role names to
-    # the FULL PYTHON PATH of the handler function (e.g., 'agents.tasks.handle_dichotomy_suggestion').
-    handler_map = getattr(settings, 'AGENT_HANDLER_MAP', {})
-
-    # Lookup the full Python path for the handler function
-    handler_path = handler_map.get(agent_role_name)
-
-    if not handler_path:
-        logger.error("Unknown agent role or missing handler path in settings: %s", agent_role_name)
-        # In a real system, you might raise an exception here to trigger a dead-letter queue
-        # or notify an administrator. For now, we return.
+    # Ensure this is the event we are expecting (for safety)
+    if event_type != DICHOTOMY_SUGGESTION_COMPLETED:
+        logger.warning("Received unexpected event type: %s", event_type)
         return
 
-    try:
-        # Dynamically load the function (the coupling happens here via path, not import)
-        # Split the path into module and function name
-        module_path, func_name = handler_path.rsplit('.', 1)
+    workflow_state_id = payload.get('workflow_state_id')
+    suggestions_data = payload.get('suggestions')
+    user_id = payload.get('user_id')
 
-        # Import the module (e.g., agents.tasks)
-        module = importlib.import_module(module_path)
-
-        # Get the function object (e.g., handle_dichotomy_suggestion)
-        handler_func = getattr(module, func_name)
-
-    except (ImportError, AttributeError) as e:
-        logger.error("Failed to dynamically load agent handler function '%s': %s", handler_path, str(e))
+    if not workflow_state_id:
+        logger.error("Missing workflow_state_id in event payload for task ID: %s", task_id)
         return
 
-    # Execute the specific agent logic
-    logger.info("Dispatching task for role '%s' to handler: %s", agent_role_name, handler_path)
+    if not user_id:
+        logger.error("Missing user_id in event payload for task ID: %s", task_id)
+        return
+
+    if suggestions_data is None:
+        logger.error("Missing suggestions data in event payload for task ID: %s", task_id)
+        return
+
+    logger.info("Persistence starting for WF ID %s. Updating cache.", workflow_state_id)
+
     try:
-        handler_func(
-            workflow_state_id=workflow_state_id,
-            input_data=input_data
+        # 1. Update WorkflowState (Persistence)
+        # We use filter().update() for atomic writing.
+        rows_updated = WorkflowState.objects.filter(pk=workflow_state_id).update(
+            suggested_dichotomies_cache=suggestions_data
         )
+
+        if rows_updated == 0:
+            logger.error("WorkflowState ID %s not found during persistence update.", workflow_state_id)
+            return
+
+        logger.info("Workflow state %s successfully updated with %d suggestions.", workflow_state_id, len(suggestions_data))
+
+        # 2. Trigger WebSocket Notification (Decoupling with realtime app)
+        send_ws_notification(
+            user_id=user_id,
+            event_type="dichotomy_suggestions_complete",
+            payload={
+                "message": "Strategic dichotomies are ready for review.",
+                "workflow_state_id": workflow_state_id
+            }
+        )
+        logger.info("WebSocket notification sent to user %s.", user_id)
+
     except Exception as e:
-        logger.error("Execution failed for agent role '%s': %s", agent_role_name, str(e))
-        # Depending on complexity, you might re-raise the exception or handle failure states here.
+        logger.critical("Persistence failed for WorkflowState ID %s: %s", workflow_state_id, str(e))
+        # Re-raise to signal Celery failure
+        raise
