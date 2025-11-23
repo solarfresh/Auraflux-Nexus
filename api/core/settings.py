@@ -250,6 +250,13 @@ GOOGLE_SEARCH_CONFIG = {
     "google_search_engine_base_url": os.environ.get('GOOGLE_SEARCH_ENGINE_BASE_URL', 'https://customsearch.googleapis.com/customsearch/v1')
 }
 
+LLM_MODEL_CONFIGS = {
+    'gemini-2.0-flash': {
+        'MODE': 'gemini',
+        'API_KEY': os.environ.get('GOOGLE_GENAI_API_KEY', ''),
+    }
+}
+
 AGENT_HANDLER_MAP = {
     # The workflows app only knows this string is a path
     "DichotomySuggester": "agents.tasks.handle_dichotomy_suggestion",

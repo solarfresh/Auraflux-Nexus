@@ -4,16 +4,13 @@ from typing import Any, Dict
 
 from agents.agents.generic_agent import \
     GenericAgent  # The concrete agent class
-# --- Imports from the agents core system ---
-# Assuming these are available in your project environment
-from agents.models import AgentRoleConfig
-from auraflux_core.core.clients.client_manager import \
-    ClientManager  # To manage LLM connection
 from auraflux_core.core.schemas.agents import AgentConfig
 from core.celery_app import celery_app
 from messaging.constants import DICHOTOMY_SUGGESTION_COMPLETED
 from messaging.tasks import publish_event
-from realtime.utils import send_ws_notification
+
+from .models import AgentRoleConfig
+from .utils import get_global_client_manager
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +36,9 @@ def handle_suggestion_request_event(event_type: str, payload: dict):
     logger.info("Agent starting computation for WF ID %s (Role: %s)", workflow_state_id, agent_role_name)
 
     try:
-        # 1. Load Configuration (Coupling to the AGENTS app's local model)
+        # Load Configuration (Coupling to the AGENTS app's local model)
         role_config = AgentRoleConfig.objects.get(name=agent_role_name)
-
-        # Prepare Agent Setup
-        agent_config_data = role_config.llm_config
-        client_manager = ClientManager()
+        client_manager = get_global_client_manager()
         agent = GenericAgent(
             config=AgentConfig(**agent_config_data),
             client_manager=client_manager
