@@ -58,10 +58,10 @@ def handle_suggestion_request_event(event_type: str, payload: dict):
             client_manager=client_manager
         )
 
-        suggestions_json_str = async_to_sync(agent.generate)(messages=[initial_message])
+        suggestions = async_to_sync(agent.generate)(messages=[initial_message])
         logger.info("Agent generated suggestions JSON string for WF ID %s.", workflow_state_id)
 
-        suggestions_data: Dict[str, Any] = json.loads(suggestions_json_str)
+        suggestions_data: Dict[str, Any] = json.loads(suggestions.content.replace('```json', '').replace('```', '').strip())
         logger.info("Agent computation complete. Generated %d suggestions.", len(suggestions_data))
 
         # 3. Publish Completion Event to the Bus
