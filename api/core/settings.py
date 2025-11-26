@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
+    'channels',
 
     # Third-party apps
     'rest_framework',
@@ -109,6 +110,17 @@ LOGGING = {
     },
 }
 
+CHANNEL_LAYERS = {
+    "default": {
+        # Use Redis as the channel layer backend
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            # Use a dictionary of connection parameters
+            "hosts": [(os.environ.get('REDIS_HOST', "127.0.0.1"), 6379)], # Replace with your Redis host/port
+        },
+    },
+}
+
 ASGI_APPLICATION = 'core.asgi.application'
 WSGI_APPLICATION = 'core.wsgi.application'
 
@@ -135,7 +147,7 @@ CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
         # Ensure you replace this with your actual Redis connection string
-        "LOCATION": os.environ.get('REDIS_URI', "redis://127.0.0.1:6379/1"),
+        "LOCATION": os.environ.get('CACHE_REDIS_URI', "redis://127.0.0.1:6379/1"),
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
             # Optional: Set a default timeout (in seconds) for all cache entries

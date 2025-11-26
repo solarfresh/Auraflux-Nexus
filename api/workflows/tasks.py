@@ -1,3 +1,4 @@
+import json
 import logging
 
 from core.celery_app import celery_app
@@ -61,7 +62,8 @@ def handle_suggestion_completion_event(event_type: str, payload: dict):
             event_type="dichotomy_suggestions_complete",
             payload={
                 "message": "Strategic dichotomies are ready for review.",
-                "workflow_state_id": workflow_state_id
+                "workflow_state_id": workflow_state_id,
+                'suggestions': suggestions_data
             }
         )
         logger.info("WebSocket notification sent to user %s.", user_id)

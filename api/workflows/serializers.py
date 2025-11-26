@@ -18,7 +18,6 @@ class DichotomySuggestionSerializer(Serializer):
     Serializer for the computed/suggested strategic dichotomies.
     Matches the structure required by the ScopeSelector frontend component.
     """
-    id = serializers.CharField(max_length=50, help_text="Unique ID for the dichotomy.")
     name = serializers.CharField(max_length=100, help_text="The name of the strategic tension (e.g., 'Speed vs. Security').")
     description = serializers.CharField(help_text="A brief explanation of the tension.")
     roles = serializers.ListField(
