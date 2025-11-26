@@ -22,7 +22,6 @@ def publish_event(event_type: str, payload: dict):
     celery_app.send_task(
         event_type,                     # The task name is the event type
         args=[event_type, payload],     # Listener tasks expect (event_type, payload)
-        queue='events_default',         # Or a defined default queue
         # The broker (and settings.py) will use the task name (event_type)
         # to apply further routing.
     )

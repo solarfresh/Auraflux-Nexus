@@ -15,4 +15,9 @@ celery_app = Celery(
 )
 
 celery_app.config_from_object('django.conf:settings')
-celery_app.autodiscover_tasks(lambda: settings.INSTALLED_APPS)
+celery_app.autodiscover_tasks([
+    'agents',
+    'messaging',
+    'workflows',
+])
+

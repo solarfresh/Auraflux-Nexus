@@ -2,10 +2,12 @@ import json
 import logging
 from typing import Any, Dict
 
-from agents.agents.generic_agent import \
-    GenericAgent  # The concrete agent class
+from asgiref.sync import async_to_sync
+from auraflux_core.core.agents.generic_agent import GenericAgent
 from auraflux_core.core.schemas.agents import AgentConfig
+from auraflux_core.core.schemas.messages import Message
 from core.celery_app import celery_app
+from django.apps import apps
 from messaging.constants import DICHOTOMY_SUGGESTION_COMPLETED
 from messaging.tasks import publish_event
 
@@ -23,6 +25,7 @@ def handle_suggestion_request_event(event_type: str, payload: dict):
     2. Runs the AI computation.
     3. Publishes the DICHOTOMY_SUGGESTION_COMPLETED event (decoupled response).
     """
+    task_id = handle_suggestion_request_event.request.id
 
     workflow_state_id = payload.get('workflow_state_id')
     user_id = payload.get('user_id')
@@ -30,7 +33,7 @@ def handle_suggestion_request_event(event_type: str, payload: dict):
     agent_role_name = payload.get('agent_role_name')
 
     if not all([workflow_state_id, user_id, input_data, agent_role_name]):
-        logger.error("Missing required fields in event payload for task ID: %s", celery_app.request.id)
+        logger.error("Missing required fields in event payload for task ID: %s", task_id)
         return
 
     logger.info("Agent starting computation for WF ID %s (Role: %s)", workflow_state_id, agent_role_name)
@@ -39,17 +42,24 @@ def handle_suggestion_request_event(event_type: str, payload: dict):
         # Load Configuration (Coupling to the AGENTS app's local model)
         role_config = AgentRoleConfig.objects.get(name=agent_role_name)
         client_manager = get_global_client_manager()
+        # agents_app_config = apps.get_app_config('agents')
+        # client_manager = getattr(agents_app_config, 'client_manager', None)
+        if client_manager is None:
+            raise RuntimeError("ClientManager is not initialized in AgentsConfig.")
+
+        initial_message = Message(role='user', content=input_data, name='User')
+
         agent = GenericAgent(
-            config=AgentConfig(**agent_config_data),
+            config=AgentConfig(
+                name=role_config.name,
+                system_message=role_config.system_prompt,
+                model=role_config.llm_parameters.get('model_name', 'gemini-2.0-flash'),
+            ),
             client_manager=client_manager
         )
 
-        # Run Agent Computation
-        suggestions_json_str: str = agent.generate_suggestions_from_text(
-            text=input_data,
-            system_prompt=role_config.system_prompt,
-            output_schema=role_config.output_schema
-        )
+        suggestions_json_str = async_to_sync(agent.generate)(messages=[initial_message])
+        logger.info("Agent generated suggestions JSON string for WF ID %s.", workflow_state_id)
 
         suggestions_data: Dict[str, Any] = json.loads(suggestions_json_str)
         logger.info("Agent computation complete. Generated %d suggestions.", len(suggestions_data))
