@@ -44,7 +44,7 @@ class LoginView(APIView):
         examples=[
             OpenApiExample(
                 'Successful Login',
-                value={'message': 'Login successful.', 'username': 'testuser'},
+                value={'id': 1, 'username': 'testuser', 'email': 'user@example.com', 'is_admin': False},
                 response_only=True,
                 status_codes=['200']
             ),
@@ -70,11 +70,12 @@ class LoginView(APIView):
             refresh = RefreshToken.for_user(user)
             access = refresh.access_token
 
-            # Prepare the response
-            response = Response({
-                'message': 'Login successful.',
-                'username': getattr(user, 'username')
-            }, status=status.HTTP_200_OK)
+            serializer = UserSerializer(user)
+
+            response = Response(
+                serializer.data,
+                status=status.HTTP_200_OK
+            )
 
             # Set cookies with HttpOnly and secure flags
             response.set_cookie(
@@ -157,6 +158,48 @@ class UserCreateView(CreateModelMixin, GenericAPIView):
     def post(self, request, *args, **kwargs):
         # Handles the POST request to create a new user
         return self.create(request, *args, **kwargs)
+
+
+class UserStatusView(APIView):
+    """
+    Returns the details of the currently authenticated user (profile check).
+    Requires a valid JWT Access Token in the cookie.
+    """
+    # 🎯 Requires the user to be authenticated via the JWT Cookie Middleware
+    permission_classes = [IsAuthenticated]
+
+    # We do NOT need to set authentication_classes = [] here.
+    # It must rely on the global DEFAULT_AUTHENTICATION_CLASSES, which
+    # should include your JWTCookieAuthentication class for this to work.
+
+    @extend_schema(
+        summary="Get Current Authenticated User Status",
+        description="Checks session validity and returns key details of the logged-in user.",
+        responses={
+            200: UserSerializer,
+            401: {"description": "Authentication failed (token missing or invalid)."},
+        },
+        examples=[
+            OpenApiExample(
+                'Authenticated User Data',
+                value={'id': 1, 'username': 'testuser', 'email': 'user@example.com', 'is_admin': False},
+                response_only=True,
+                status_codes=['200']
+            )
+        ]
+    )
+    async def get(self, request):
+        """
+        Since permission_classes = [IsAuthenticated] passed, request.user is an
+        authenticated User object, fetched by the JWTAuthMiddleware/JWTCookieAuthentication.
+        """
+        # The serializer will validate and structure the data from the user object
+        serializer = UserSerializer(request.user)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK
+        )
 
 
 class UserViewSet(ModelViewSet):
