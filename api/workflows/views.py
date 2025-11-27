@@ -3,12 +3,15 @@ import logging
 from adrf.views import APIView
 from core.utils import get_user_search_cache_key
 from django.contrib.auth import get_user_model
+from messaging.constants import DICHOTOMY_SUGGESTION_REQUESTED
+from messaging.tasks import publish_event  # CRITICAL: Import from new app
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import WorkflowState
-from .serializers import DataLockSerializer, WorkflowStateSerializer
+from .models import KnowledgeSource, WorkflowState
+from .serializers import (DataLockSerializer, DichotomySuggestionSerializer,
+                          WorkflowStateSerializer)
 from .utils import (get_and_persist_cached_results,
                     get_or_create_workflow_state, update_workflow_state)
 
@@ -80,6 +83,85 @@ class DataLockAPIView(APIView):
         return Response(
             {"message": "Knowledge Base locked successfully.", "new_step": updated_state.current_step},
             status=status.HTTP_200_OK
+        )
+
+
+class DichotomySuggestionAPIView(APIView):
+    """
+    Retrieves dynamically suggested strategic dichotomies (tensions)
+    based on the user's locked KnowledgeSource search results.
+    """
+    permission_classes = [IsAuthenticated]
+
+    # Making this method async prepares it for the actual RAG/computation logic later
+    async def get(self, request, *args, **kwargs):
+        user = request.user
+
+        # Retrieve the current Workflow State
+        try:
+            workflow_state = await get_or_create_workflow_state(user)
+        except WorkflowState.DoesNotExist:
+            return Response(
+                {"error": "Workflow state not found. Please start a search first."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check Precondition
+        # Dichotomies should only be suggested once the data is locked and step is 'SCOPE'
+        if workflow_state.current_step not in ['SCOPE', 'COLLECTION']:
+            return Response(
+                {"error": f"Dichotomy suggestion is only available in the 'SCOPE' step. Current step: {workflow_state.current_step}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check Cache (The primary read operation)
+        if workflow_state.suggested_dichotomies_cache:
+            # Data is already computed and cached. Return it immediately.
+            suggestions = workflow_state.suggested_dichotomies_cache
+            serializer = DichotomySuggestionSerializer(suggestions, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # Cache Miss: Trigger Asynchronous Computation
+
+        # We need the source text to pass to the agent, but we must handle the case
+        # where KnowledgeSource records are not present (which should be caught
+        # by the DataLock API, but is a safe check here).
+        try:
+            # Fetch all snippets from the locked knowledge sources
+            knowledge_sources_qs = KnowledgeSource.objects.filter(workflow_state=workflow_state)
+            knowledge_sources_text = "\n\n---\n\n".join(
+                [ks async for ks in knowledge_sources_qs.values_list('snippet', flat=True)]
+            )
+        except Exception as e:
+            logging.error("Failed to fetch knowledge sources for workflow state %s: %s", workflow_state.pk, str(e))
+            return Response(
+                {"error": "Failed to retrieve required knowledge base data."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        if not knowledge_sources_text.strip():
+            return Response(
+                {"error": "No locked knowledge sources found to generate suggestions from."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        event_payload = {
+            "workflow_state_id": workflow_state.pk,
+            "user_id": user.id,
+            "agent_role_name": "DichotomysSuggester",
+            "input_data": knowledge_sources_text
+        }
+
+        publish_event.delay(
+            event_type=DICHOTOMY_SUGGESTION_REQUESTED,
+            payload=event_payload
+        )
+        logging.info("Published %s event for workflow ID: %s", DICHOTOMY_SUGGESTION_REQUESTED, workflow_state.pk)
+
+        # 3. Return Processing Status
+        return Response(
+            {"status": "processing", "message": "AI generation request submitted. Please wait for the real-time update."},
+            status=status.HTTP_202_ACCEPTED
         )
 
 
