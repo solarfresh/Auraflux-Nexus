@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import Any, Dict
 
 from asgiref.sync import async_to_sync
 from auraflux_core.core.agents.generic_agent import GenericAgent
@@ -61,7 +60,7 @@ def handle_suggestion_request_event(event_type: str, payload: dict):
         suggestions = async_to_sync(agent.generate)(messages=[initial_message])
         logger.info("Agent generated suggestions JSON string for WF ID %s.", workflow_state_id)
 
-        suggestions_data: Dict[str, Any] = json.loads(suggestions.content.replace('```json', '').replace('```', '').strip())
+        suggestions_data = json.loads(suggestions.content.replace('```json', '').replace('```', '').strip())
         logger.info("Agent computation complete. Generated %d suggestions.", len(suggestions_data))
 
         # 3. Publish Completion Event to the Bus
