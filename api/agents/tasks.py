@@ -1,5 +1,7 @@
 import json
 import logging
+import uuid
+from datetime import datetime
 
 from asgiref.sync import async_to_sync
 from auraflux_core.core.agents.generic_agent import GenericAgent
@@ -7,35 +9,92 @@ from auraflux_core.core.schemas.agents import AgentConfig
 from auraflux_core.core.schemas.messages import Message
 from core.celery_app import celery_app
 from django.apps import apps
-from messaging.constants import DICHOTOMY_SUGGESTION_COMPLETED
+from django.utils import timezone
+from messaging.constants import (INITIATION_EA_STREAM_COMPLETED,
+                                 INITIATION_EA_STREAM_REQUEST,
+                                 INITIATION_SKE_RESPONSE_COMPUTED)
 from messaging.tasks import publish_event
+from realtime.utils import send_ws_notification
 
 from .models import AgentRoleConfig
 from .utils import get_global_client_manager
 
 logger = logging.getLogger(__name__)
 
-@celery_app.task(name='handle_suggestion_request_event', ignore_result=True)
-def handle_suggestion_request_event(event_type: str, payload: dict):
-    """
-    Consumer task for the DICHOTOMY_SUGGESTION_REQUESTED event.
 
-    1. Loads the agent configuration (coupling to AgentRoleConfig).
-    2. Runs the AI computation.
-    3. Publishes the DICHOTOMY_SUGGESTION_COMPLETED event (decoupled response).
+@celery_app.task(name='handle_initiation_chat_input_request_event', ignore_result=True)
+def handle_initiation_chat_input_request_event(event_type: str, payload: dict):
     """
-    task_id = handle_suggestion_request_event.request.id
+    Consumer task for the INITIATION_CHAT_INPUT_REQUESTED event (from the API View).
 
-    workflow_state_id = payload.get('workflow_state_id')
+    This task acts purely as a high-speed router. It validates the essential IDs
+    and immediately forwards the full payload to the INITIATION_EA_STREAM_REQUEST
+    event, ensuring the streaming process starts on the dedicated worker pool
+    without blocking the current queue.
+    """
+    task_id = handle_initiation_chat_input_request_event.request.id
+    session_id_str = payload.get('session_id')
     user_id = payload.get('user_id')
-    input_data = payload.get('input_data')
-    agent_role_name = payload.get('agent_role_name')
-
-    if not all([workflow_state_id, user_id, input_data, agent_role_name]):
-        logger.error("Missing required fields in event payload for task ID: %s", task_id)
+    # Critical Parameter Validation
+    if not (session_id_str and user_id):
+        logger.error("Task %s: Missing critical session_id or user_id in payload. Aborting.", task_id)
         return
 
-    logger.info("Agent starting computation for WF ID %s (Role: %s)", workflow_state_id, agent_role_name)
+    try:
+        uuid.UUID(session_id_str)
+    except ValueError:
+        logger.error("Task %s: Invalid session_id format: %s. Aborting.", task_id, session_id_str)
+        return
+
+    logger.info(
+        "Task %s: Received %s for session %s. Forwarding request to the streaming worker pool.",
+        task_id, event_type, session_id_str
+    )
+
+    # Publish INITIATION_EA_STREAM_REQUEST Event (Your Step 1 execution)
+    # This triggers Task 1 (handle_ea_stream_task)
+    publish_event.delay(
+        event_type=INITIATION_EA_STREAM_REQUEST,
+        payload=payload
+    )
+
+    logger.info(
+        "Task %s: Successfully published %s for session %s. Router task finished.",
+        task_id, INITIATION_EA_STREAM_REQUEST, session_id_str
+    )
+
+
+@celery_app.task(name='handle_initiation_ea_stream_complete_event', ignore_result=True)
+def handle_initiation_ea_stream_complete_event(event_type: str, payload: dict):
+    """
+    Consumer task for INITIATION_EA_STREAM_COMPLETED.
+
+    1. Executes SKE Agent to calculate s_new and k_pre.
+    2. Performs the DA activation check.
+    3. Publishes INITIATION_SKE_RESPONSE_COMPUTED for DB update.
+    4. Publishes INITIATION_DA_VALIDATION_REQUESTED if needed.
+    """
+    task_id = handle_initiation_ea_stream_complete_event.request.id
+
+    # Extract Context Data
+    session_id = payload.get('session_id')
+    user_id = payload.get('user_id')
+    agent_role_name = payload.get('ske_agent_role_name')
+    current_chat_history = payload.get('current_chat_history')
+    full_response_text = payload.get('full_response_text') # Key data from streaming task
+
+    # Extract DA Decision Context
+    clarity_score_old = payload.get('current_clarity_score', 0.0)
+    da_threshold = payload.get('da_activation_threshold', 0.35)
+    last_da_execution_time_str = payload.get('last_da_execution_time')
+
+    if not full_response_text:
+        logger.error("Task %s: Missing full_response_text. Cannot perform SKE analysis.", task_id)
+        return
+
+    # --- Execute SKE Computation ---
+    s_new = clarity_score_old
+    k_pre = []
 
     try:
         # Load Configuration (Coupling to the AGENTS app's local model)
@@ -46,7 +105,108 @@ def handle_suggestion_request_event(event_type: str, payload: dict):
         if client_manager is None:
             raise RuntimeError("ClientManager is not initialized in AgentsConfig.")
 
-        initial_message = Message(role='user', content=input_data, name='User')
+        current_chat_history.append(full_response_text)
+
+        messages = [Message(**msg) for msg in current_chat_history]
+
+        agent = GenericAgent(
+            config=AgentConfig(
+                name=role_config.name,
+                system_message=role_config.system_prompt,
+                model=role_config.llm_parameters.get('model_name', 'gemini-2.0-flash'),
+            ),
+            client_manager=client_manager
+        )
+        ske_output = async_to_sync(agent.generate)(messages=messages)
+        s_new = ske_output.get('clarity_score', clarity_score_old)
+        k_pre = ske_output.get('extracted_keywords', [])
+        logger.info("Task %s: SKE computation complete. S_new: %.2f", task_id, s_new)
+
+    except Exception as e:
+        logger.critical("Task %s: SKE execution failed: %s", task_id, str(e))
+        # Fallback to old values
+
+    # --- Determine DA Activation ---
+    should_trigger_da = False
+    # Clarity Score Threshold
+    if s_new > da_threshold:
+        # Time elapsed threshold (M seconds) - Logic simplified here
+        time_elapsed_ok = True
+        if last_da_execution_time_str:
+            last_da_execution_time = datetime.fromisoformat(last_da_execution_time_str)
+            time_since_last_run = (timezone.now() - last_da_execution_time).total_seconds()
+
+            # Assuming M=60 seconds as the interval
+            if time_since_last_run < 60:
+                time_elapsed_ok = False
+
+        # Keyword Stability Count (N turns) - Requires DB lock, deferred
+        # We rely on the DB write task to perform the final check under lock.
+        if time_elapsed_ok:
+            # We preliminarily set the flag. The DB write task will finalize the decision.
+            should_trigger_da = True
+
+    # --- Publish SKE Response Computed ---
+    ske_response_payload = {
+        "session_id": session_id,
+        "user_id": user_id,
+        "ai_response_text": full_response_text, # R (for DB history logging)
+        "new_clarity_score": s_new,
+        "new_unverified_keywords": k_pre,
+
+        # Pass the preliminary DA trigger flag to the DB write task
+        "preliminary_da_trigger": should_trigger_da,
+        "last_da_execution_time": last_da_execution_time_str, # Pass context for final lock check
+        # ... (Pass any other necessary DA context)
+    }
+
+    # This triggers the high-priority DB write task
+    publish_event.delay(
+        event_type=INITIATION_SKE_RESPONSE_COMPUTED,
+        payload=ske_response_payload
+    )
+    logger.info("Task %s: Published %s event for DB update.", task_id, INITIATION_SKE_RESPONSE_COMPUTED)
+
+    # --- Publish DA Validation Request ---
+    # To maintain consistency, the final decision and submission of DA is best done
+    # within the DB write task (INITIATION_SKE_RESPONSE_COMPUTED consumer)
+    # after the atomic update. We omit the direct submission here and let the
+    # DB task handle the final trigger.
+
+    # If the DB task confirms the DA trigger, it will publish INITIATION_DA_VALIDATION_REQUESTED.
+    if should_trigger_da:
+        logger.warning("Task %s: Preliminary DA trigger flag set. Awaiting DB confirmation.", task_id)
+
+@celery_app.task(name='handle_initiation_ea_stream_request_event', ignore_result=True)
+def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
+    """
+    Consumer task for INITIATION_EA_STREAM_REQUEST.
+
+    1. Executes the Explorer Agent (EA) and streams the response text.
+    2. Publishes INITIATION_STREAM_COMPLETED event to transfer control to SKE computation.
+    """
+    task_id = handle_initiation_ea_stream_request_event.request.id
+
+    # Extract necessary fields for EA (Dialogue focused)
+    session_id = payload.get('session_id')
+    user_id = payload.get('user_id')
+    user_message = payload.get('user_message')
+    agent_role_name = payload.get('ea_agent_role_name')
+    current_chat_history = payload.get('current_chat_history')
+
+    if not all([session_id, user_id, user_message]):
+        logger.error("Task %s: Missing critical fields in payload. Aborting.", task_id)
+        return
+
+    logger.info("Task %s: Starting EA streaming for session %s.", task_id, session_id)
+
+    try:
+        role_config = AgentRoleConfig.objects.get(name=agent_role_name)
+        client_manager = get_global_client_manager()
+        if client_manager is None:
+            raise RuntimeError("ClientManager is not initialized in AgentsConfig.")
+
+        messages = [Message(**msg) for msg in current_chat_history]
 
         agent = GenericAgent(
             config=AgentConfig(
@@ -57,29 +217,49 @@ def handle_suggestion_request_event(event_type: str, payload: dict):
             client_manager=client_manager
         )
 
-        suggestions = async_to_sync(agent.generate)(messages=[initial_message])
-        logger.info("Agent generated suggestions JSON string for WF ID %s.", workflow_state_id)
+        response_stream = agent.generate(messages=messages)
+        for chunk in response_stream:
+            full_response_text += chunk
+            send_ws_notification(
+                user_id=user_id,
+                event_type="initiation_ea_stream",
+                payload={
+                    "message": "Initiation EA streaming in progress.",
+                    "status": "RUNNING",
+                    'full_response_text': full_response_text
+                }
+            )
 
-        suggestions_data = json.loads(suggestions.content.replace('```json', '').replace('```', '').strip())
-        logger.info("Agent computation complete. Generated %d suggestions.", len(suggestions_data))
-
-        # 3. Publish Completion Event to the Bus
-        # The WORKFLOWS app listener will pick this up to update the cache and notify the user.
-        completion_payload = {
-            "workflow_state_id": workflow_state_id,
-            "user_id": user_id,
-            "suggestions": suggestions_data # Pass the final computed data
-        }
-
-        publish_event.delay(
-            event_type=DICHOTOMY_SUGGESTION_COMPLETED,
-            payload=completion_payload
+        send_ws_notification(
+            user_id=user_id,
+            event_type="initiation_ea_stream",
+            payload={
+                "message": "Initiation EA streaming complete.",
+                "status": "COMPLETE",
+                'full_response_text': full_response_text
+            }
         )
-        logger.info("Published %s event for WF ID %s.", DICHOTOMY_SUGGESTION_COMPLETED, workflow_state_id)
-
-    except AgentRoleConfig.DoesNotExist:
-        logger.error("Agent role config '%s' not found. Cannot compute suggestions.", agent_role_name)
+        logger.info("Task %s: EA streaming complete.", task_id)
     except Exception as e:
-        logger.critical("AI Agent computation failed for WF ID %s: %s", workflow_state_id, str(e))
-        # Re-raise to ensure Celery records the task as failed
-        raise
+        logger.critical("Task %s: EA streaming failed for session %s: %s", task_id, session_id, str(e))
+
+    # Publish Event to Trigger SKE Computation
+    # SKE Task needs the full text and all decision context
+    ske_request_payload = {
+        "session_id": session_id,
+        "user_message": user_message,
+        "full_response_text": full_response_text, # Key input for SKE analysis
+
+        # Pass all DA decision context from original payload
+        "user_id": user_id,
+        "current_clarity_score": payload.get('current_clarity_score'),
+        "last_da_execution_time": payload.get('last_da_execution_time'),
+        "da_activation_threshold": payload.get('da_activation_threshold'),
+    }
+
+    # Publish event to trigger the SKE Task (handle_ske_extraction_task)
+    publish_event.delay(
+        event_type=INITIATION_EA_STREAM_COMPLETED,
+        payload=ske_request_payload
+    )
+    logger.info("Task %s: Published %s event to trigger SKE extraction.", task_id, INITIATION_EA_STREAM_COMPLETED)

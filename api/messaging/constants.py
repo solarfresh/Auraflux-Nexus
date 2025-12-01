@@ -1,4 +1,6 @@
-# --- Dichotomy Suggestion Events ---
-DICHOTOMY_SUGGESTION_REQUESTED = "handle_suggestion_request_event"
-DICHOTOMY_SUGGESTION_COMPLETED = "handle_suggestion_completion_event"
-INITIATION_CHAT_INPUT_REQUESTED = ""
+INITIATION_CHAT_INPUT_REQUESTED = "handle_initiation_chat_input_request_event"
+INITIATION_DA_VALIDATION_REQUESTED = ""
+INITIATION_EA_STREAM_REQUEST = "handle_initiation_ea_stream_request_event"
+INITIATION_EA_STREAM_COMPLETED = "handle_initiation_ea_stream_complete_event"
+INITIATION_EA_RESPONSE_COMPUTED = ""
+INITIATION_SKE_RESPONSE_COMPUTED = ""
