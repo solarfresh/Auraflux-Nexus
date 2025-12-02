@@ -5,7 +5,7 @@ from core.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 @celery_app.task(name='publish_event', ignore_result=True)
-def publish_event(event_type: str, payload: dict):
+def publish_event(event_type: str, payload: dict, queue: str = 'default'):
     """
     The generic Celery task that acts as the Event Bus publisher.
 
@@ -22,6 +22,7 @@ def publish_event(event_type: str, payload: dict):
     celery_app.send_task(
         event_type,                     # The task name is the event type
         args=[event_type, payload],     # Listener tasks expect (event_type, payload)
+        queue=queue                     # Specify the queue to route the task
         # The broker (and settings.py) will use the task name (event_type)
         # to apply further routing.
     )

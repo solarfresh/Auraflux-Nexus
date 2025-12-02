@@ -10,9 +10,9 @@ from auraflux_core.core.schemas.messages import Message
 from core.celery_app import celery_app
 from django.apps import apps
 from django.utils import timezone
-from messaging.constants import (INITIATION_EA_STREAM_COMPLETED,
-                                 INITIATION_EA_STREAM_REQUEST,
-                                 INITIATION_SKE_RESPONSE_COMPUTED)
+from messaging.constants import (InitiationEAStreamCompleted,
+                                 InitiationEAStreamRequest,
+                                 InitiationSKEResponseComputed)
 from messaging.tasks import publish_event
 from realtime.utils import send_ws_notification
 
@@ -54,17 +54,18 @@ def handle_initiation_chat_input_request_event(event_type: str, payload: dict):
     # Publish INITIATION_EA_STREAM_REQUEST Event (Your Step 1 execution)
     # This triggers Task 1 (handle_ea_stream_task)
     publish_event.delay(
-        event_type=INITIATION_EA_STREAM_REQUEST,
-        payload=payload
+        event_type=InitiationEAStreamRequest.name,
+        payload=payload,
+        queue=InitiationEAStreamRequest.queue
     )
 
     logger.info(
         "Task %s: Successfully published %s for session %s. Router task finished.",
-        task_id, INITIATION_EA_STREAM_REQUEST, session_id_str
+        task_id, InitiationEAStreamRequest.name, session_id_str
     )
 
 
-@celery_app.task(name='handle_initiation_ea_stream_complete_event', ignore_result=True)
+@celery_app.task(name=InitiationEAStreamCompleted.name, ignore_result=True)
 def handle_initiation_ea_stream_complete_event(event_type: str, payload: dict):
     """
     Consumer task for INITIATION_EA_STREAM_COMPLETED.
@@ -80,8 +81,8 @@ def handle_initiation_ea_stream_complete_event(event_type: str, payload: dict):
     session_id = payload.get('session_id')
     user_id = payload.get('user_id')
     agent_role_name = payload.get('ske_agent_role_name')
-    current_chat_history = payload.get('current_chat_history')
-    full_response_text = payload.get('full_response_text') # Key data from streaming task
+    current_chat_history = payload.get('current_chat_history', [])
+    full_response_text = payload.get('full_response_text', '') # Key data from streaming task
 
     # Extract DA Decision Context
     clarity_score_old = payload.get('current_clarity_score', 0.0)
@@ -162,10 +163,11 @@ def handle_initiation_ea_stream_complete_event(event_type: str, payload: dict):
 
     # This triggers the high-priority DB write task
     publish_event.delay(
-        event_type=INITIATION_SKE_RESPONSE_COMPUTED,
-        payload=ske_response_payload
+        event_type=InitiationSKEResponseComputed.name,
+        payload=ske_response_payload,
+        queue=InitiationSKEResponseComputed.queue
     )
-    logger.info("Task %s: Published %s event for DB update.", task_id, INITIATION_SKE_RESPONSE_COMPUTED)
+    logger.info("Task %s: Published %s event for DB update.", task_id, InitiationSKEResponseComputed.name)
 
     # --- Publish DA Validation Request ---
     # To maintain consistency, the final decision and submission of DA is best done
@@ -177,7 +179,7 @@ def handle_initiation_ea_stream_complete_event(event_type: str, payload: dict):
     if should_trigger_da:
         logger.warning("Task %s: Preliminary DA trigger flag set. Awaiting DB confirmation.", task_id)
 
-@celery_app.task(name='handle_initiation_ea_stream_request_event', ignore_result=True)
+@celery_app.task(name=InitiationEAStreamRequest.name, ignore_result=True)
 def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
     """
     Consumer task for INITIATION_EA_STREAM_REQUEST.
@@ -189,13 +191,17 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
 
     # Extract necessary fields for EA (Dialogue focused)
     session_id = payload.get('session_id')
-    user_id = payload.get('user_id')
+    user_id = payload.get('user_id', None)
     user_message = payload.get('user_message')
     agent_role_name = payload.get('ea_agent_role_name')
-    current_chat_history = payload.get('current_chat_history')
+    current_chat_history = payload.get('current_chat_history', [])
 
-    if not all([session_id, user_id, user_message]):
+    if not all([session_id, user_message]):
         logger.error("Task %s: Missing critical fields in payload. Aborting.", task_id)
+        return
+
+    if user_id is None:
+        logger.error("Task %s: Missing user_id in payload. Aborting.", task_id)
         return
 
     logger.info("Task %s: Starting EA streaming for session %s.", task_id, session_id)
@@ -217,9 +223,11 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
             client_manager=client_manager
         )
 
-        response_stream = agent.generate(messages=messages)
+        response_stream = agent.generate_stream(messages=messages)
+        full_response_text = ""
         for chunk in response_stream:
-            full_response_text += chunk
+            text_chunk = chunk.content if chunk.content else ""
+            full_response_text += text_chunk
             send_ws_notification(
                 user_id=user_id,
                 event_type="initiation_ea_stream",
@@ -259,7 +267,8 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
 
     # Publish event to trigger the SKE Task (handle_ske_extraction_task)
     publish_event.delay(
-        event_type=INITIATION_EA_STREAM_COMPLETED,
-        payload=ske_request_payload
+        event_type=InitiationEAStreamCompleted.name,
+        payload=ske_request_payload,
+        queue=InitiationEAStreamCompleted.queue
     )
-    logger.info("Task %s: Published %s event to trigger SKE extraction.", task_id, INITIATION_EA_STREAM_COMPLETED)
+    logger.info("Task %s: Published %s event to trigger SKE extraction.", task_id, InitiationEAStreamCompleted.name)
