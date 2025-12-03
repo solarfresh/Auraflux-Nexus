@@ -1,6 +1,7 @@
-from django.db import models
 from django.contrib.auth import get_user_model
-from django.contrib.postgres.fields import JSONField, ArrayField
+from django.contrib.postgres.fields import ArrayField
+from django.db import models
+from django.db.models import JSONField
 
 # Use the default Django User model for association
 User = get_user_model()
@@ -45,8 +46,8 @@ class ResearchWorkflowState(models.Model):
         editable=False,
         help_text="Unique identifier for the current research workflow session."
     )
-    user_id = models.ForeignKey(
-        'User',  # Replace with actual User model reference
+    user = models.ForeignKey(
+        User,
         on_delete=models.CASCADE,
         help_text="The ID of the user owning this workflow."
     )

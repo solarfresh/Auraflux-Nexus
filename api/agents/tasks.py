@@ -22,49 +22,6 @@ from .utils import get_global_client_manager
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name='handle_initiation_chat_input_request_event', ignore_result=True)
-def handle_initiation_chat_input_request_event(event_type: str, payload: dict):
-    """
-    Consumer task for the INITIATION_CHAT_INPUT_REQUESTED event (from the API View).
-
-    This task acts purely as a high-speed router. It validates the essential IDs
-    and immediately forwards the full payload to the INITIATION_EA_STREAM_REQUEST
-    event, ensuring the streaming process starts on the dedicated worker pool
-    without blocking the current queue.
-    """
-    task_id = handle_initiation_chat_input_request_event.request.id
-    session_id_str = payload.get('session_id')
-    user_id = payload.get('user_id')
-    # Critical Parameter Validation
-    if not (session_id_str and user_id):
-        logger.error("Task %s: Missing critical session_id or user_id in payload. Aborting.", task_id)
-        return
-
-    try:
-        uuid.UUID(session_id_str)
-    except ValueError:
-        logger.error("Task %s: Invalid session_id format: %s. Aborting.", task_id, session_id_str)
-        return
-
-    logger.info(
-        "Task %s: Received %s for session %s. Forwarding request to the streaming worker pool.",
-        task_id, event_type, session_id_str
-    )
-
-    # Publish INITIATION_EA_STREAM_REQUEST Event (Your Step 1 execution)
-    # This triggers Task 1 (handle_ea_stream_task)
-    publish_event.delay(
-        event_type=InitiationEAStreamRequest.name,
-        payload=payload,
-        queue=InitiationEAStreamRequest.queue
-    )
-
-    logger.info(
-        "Task %s: Successfully published %s for session %s. Router task finished.",
-        task_id, InitiationEAStreamRequest.name, session_id_str
-    )
-
-
 @celery_app.task(name=InitiationEAStreamCompleted.name, ignore_result=True)
 def handle_initiation_ea_stream_complete_event(event_type: str, payload: dict):
     """
@@ -228,6 +185,7 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         for chunk in response_stream:
             text_chunk = chunk.content if chunk.content else ""
             full_response_text += text_chunk
+            logger.info("full_response_text")
             send_ws_notification(
                 user_id=user_id,
                 event_type="initiation_ea_stream",
@@ -251,24 +209,24 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
     except Exception as e:
         logger.critical("Task %s: EA streaming failed for session %s: %s", task_id, session_id, str(e))
 
-    # Publish Event to Trigger SKE Computation
-    # SKE Task needs the full text and all decision context
-    ske_request_payload = {
-        "session_id": session_id,
-        "user_message": user_message,
-        "full_response_text": full_response_text, # Key input for SKE analysis
+    # # Publish Event to Trigger SKE Computation
+    # # SKE Task needs the full text and all decision context
+    # ske_request_payload = {
+    #     "session_id": session_id,
+    #     "user_message": user_message,
+    #     "full_response_text": full_response_text, # Key input for SKE analysis
 
-        # Pass all DA decision context from original payload
-        "user_id": user_id,
-        "current_clarity_score": payload.get('current_clarity_score'),
-        "last_da_execution_time": payload.get('last_da_execution_time'),
-        "da_activation_threshold": payload.get('da_activation_threshold'),
-    }
+    #     # Pass all DA decision context from original payload
+    #     "user_id": user_id,
+    #     "current_clarity_score": payload.get('current_clarity_score'),
+    #     "last_da_execution_time": payload.get('last_da_execution_time'),
+    #     "da_activation_threshold": payload.get('da_activation_threshold'),
+    # }
 
-    # Publish event to trigger the SKE Task (handle_ske_extraction_task)
-    publish_event.delay(
-        event_type=InitiationEAStreamCompleted.name,
-        payload=ske_request_payload,
-        queue=InitiationEAStreamCompleted.queue
-    )
-    logger.info("Task %s: Published %s event to trigger SKE extraction.", task_id, InitiationEAStreamCompleted.name)
+    # # Publish event to trigger the SKE Task (handle_ske_extraction_task)
+    # publish_event.delay(
+    #     event_type=InitiationEAStreamCompleted.name,
+    #     payload=ske_request_payload,
+    #     queue=InitiationEAStreamCompleted.queue
+    # )
+    # logger.info("Task %s: Published %s event to trigger SKE extraction.", task_id, InitiationEAStreamCompleted.name)

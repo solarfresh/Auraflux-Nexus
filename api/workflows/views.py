@@ -1,15 +1,19 @@
 import logging
-import uuid
 
 from adrf.views import APIView
 from django.contrib.auth import get_user_model
-from messaging.constants import INITIATION_CHAT_INPUT_REQUESTED
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
+                                   extend_schema)
+from messaging.constants import InitiationEAStreamRequest
 from messaging.tasks import publish_event
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import KuhlthauStage, ResearchWorkflowState
+from .serializers import (WorkflowChatInputRequestSerializer,
+                          WorkflowChatInputResponseSerializer)
 from .utils import atomic_read_and_lock_initiation_data
 
 User = get_user_model()
@@ -24,12 +28,46 @@ class WorkflowChatInputView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Submit Chat Input for Workflow Session",
+        description=(
+            "Accepts user chat input for a specific workflow session identified by session_id. "
+            "Validates the workflow state and routes the input to the appropriate agent handler based on the current stage."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the workflow session.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        request=WorkflowChatInputRequestSerializer,
+        responses={
+            202: WorkflowChatInputResponseSerializer,
+            400: OpenApiTypes.OBJECT,
+            403: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+            409: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        },
+        examples=[
+            OpenApiExample(
+                'Successful Submission',
+                value={"status": "processing", "message": "Chat input request submitted. Please await the real-time response."},
+                response_only=True,
+                status_codes=['202']
+            ),
+            OpenApiExample(
+                'Missing user_message',
+                value={"error": "user_message is required."},
+                response_only=True,
+                status_codes=['400']
+            ),
+        ]
+    )
     async def post(self, request, session_id):
-        try:
-            session_uuid = uuid.UUID(session_id)
-        except ValueError:
-            return Response({"error": "Invalid session_id format."}, status=status.HTTP_400_BAD_REQUEST)
-
         user_message = request.data.get('user_message')
         if not user_message:
             return Response({"error": "user_message is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -40,7 +78,7 @@ class WorkflowChatInputView(APIView):
         try:
             # Atomic read and lock (runs in a sync thread via @sync_to_async)
             workflow_state, phase_data = await atomic_read_and_lock_initiation_data(
-                session_id=session_uuid,
+                session_id=session_id,
                 user_id=user.id
             )
         except ResearchWorkflowState.DoesNotExist:
@@ -59,7 +97,7 @@ class WorkflowChatInputView(APIView):
             return Response({"error": error_msg}, status=status.HTTP_409_CONFLICT)
 
         event_payload = {
-            "session_id": str(session_uuid),
+            "session_id": str(session_id),
             "user_id": user.id,
             "user_message": user_message,
             "current_clarity_score": phase_data.clarity_score,
@@ -70,11 +108,12 @@ class WorkflowChatInputView(APIView):
         }
 
         publish_event.delay(
-            event_type=INITIATION_CHAT_INPUT_REQUESTED,
-            payload=event_payload
+            event_type=InitiationEAStreamRequest.name,
+            payload=event_payload,
+            queue=InitiationEAStreamRequest.queue
         )
 
-        logger.info("Published %s event for session ID: %s", INITIATION_CHAT_INPUT_REQUESTED, session_id)
+        logger.info("Published %s event for session ID: %s", InitiationEAStreamRequest.name, session_id)
 
         return Response(
             {"status": "processing", "message": "Chat input request submitted. Please await the real-time response."},

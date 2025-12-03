@@ -81,7 +81,7 @@ def get_or_create_initiation_data(workflow_state: ResearchWorkflowState) -> Init
         workflow_state=workflow_state,
         defaults={
             'clarity_score': 0.0,
-            'last_DA_execution_time': timezone.now(),
+            'last_da_execution_time': timezone.now(),
             'keyword_stability_count': 0,
             'chat_history': []
         }
