@@ -69,6 +69,7 @@ class WorkflowChatInputView(APIView):
     )
     async def post(self, request, session_id):
         user_message = request.data.get('user_message')
+        ea_agent_role_name = request.data.get('ea_agent_role_name', 'ExplorerAgent')
         if not user_message:
             return Response({"error": "user_message is required."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -100,6 +101,7 @@ class WorkflowChatInputView(APIView):
             "session_id": str(session_id),
             "user_id": user.id,
             "user_message": user_message,
+            "ea_agent_role_name": ea_agent_role_name,
             "current_clarity_score": phase_data.clarity_score,
             "last_da_execution_time": phase_data.last_da_execution_time.isoformat() if phase_data.last_da_execution_time else None,
             "keyword_stability_count": phase_data.keyword_stability_count,

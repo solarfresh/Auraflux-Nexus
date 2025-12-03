@@ -169,8 +169,6 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         if client_manager is None:
             raise RuntimeError("ClientManager is not initialized in AgentsConfig.")
 
-        messages = [Message(**msg) for msg in current_chat_history]
-
         agent = GenericAgent(
             config=AgentConfig(
                 name=role_config.name,
@@ -180,12 +178,15 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
             client_manager=client_manager
         )
 
-        response_stream = agent.generate_stream(messages=messages)
+        response_stream = agent.generate_stream(
+            message=Message(role="user", content=user_message, name="User"),
+            chat_history=[Message(**msg) for msg in current_chat_history]
+        )
         full_response_text = ""
         for chunk in response_stream:
             text_chunk = chunk.content if chunk.content else ""
             full_response_text += text_chunk
-            logger.info("full_response_text")
+            logger.info(f"full_response_text: {full_response_text}")
             send_ws_notification(
                 user_id=user_id,
                 event_type="initiation_ea_stream",

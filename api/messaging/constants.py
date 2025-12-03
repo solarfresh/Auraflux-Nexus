@@ -3,13 +3,8 @@ class Queue:
     STREAM = 'stream'
 
 
-class InitiationChatInputRequest:
-    name = "handle_initiation_chat_input_request_event"
-    queue = Queue.DEFAULT
-
-
 class InitiationEAStreamRequest:
-    name = "handle_initiation_chat_input_request_event"
+    name = "handle_initiation_ea_stream_request_event"
     queue = Queue.STREAM
 
 
