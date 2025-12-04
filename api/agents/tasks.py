@@ -12,6 +12,7 @@ from messaging.constants import (InitiationEAStreamCompleted,
 from messaging.tasks import publish_event
 from realtime.utils import send_ws_notification
 
+from .models import AgentRoleConfig
 from .utils import get_agent_instance
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ def handle_initiation_ea_stream_complete_event(event_type: str, payload: dict):
     s_new = clarity_score_old
     k_pre = []
 
-    agent = get_agent_instance(agent_role_name)
+    agent = get_agent_instance(AgentRoleConfig, agent_role_name)
 
     try:
         current_chat_history.append(full_response_text)
@@ -164,7 +165,7 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         queue=PersistChatEntry.queue
     )
 
-    agent = get_agent_instance(agent_role_name)
+    agent = get_agent_instance(AgentRoleConfig, agent_role_name)
     try:
         response_stream = agent.generate_stream(
             message=Message(role="user", content=user_message, name="User"),

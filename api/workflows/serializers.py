@@ -1,5 +1,17 @@
-from adrf.serializers import Serializer
+from adrf.serializers import ModelSerializer, Serializer
 from rest_framework import serializers
+
+from .models import ChatHistoryEntry
+
+
+class ChatEntryHistorySerializer(ModelSerializer):
+    """
+    Serializer used for validating incoming chat message data from the publisher
+    before queuing the persistence task.
+    """
+    class Meta:
+        model = ChatHistoryEntry
+        fields = ('id', 'role', 'content', 'name', 'sequence_number', 'timestamp')
 
 
 class WorkflowChatInputRequestSerializer(Serializer):

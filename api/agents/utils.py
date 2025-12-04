@@ -1,6 +1,5 @@
 import logging
 from typing import Any, Optional
-from .models import AgentRoleConfig
 from auraflux_core.core.agents.generic_agent import GenericAgent
 from auraflux_core.core.schemas.agents import AgentConfig
 
@@ -20,9 +19,9 @@ def get_global_client_manager() -> Any:
         raise RuntimeError("ClientManager has not been initialized. Check agents/apps.py ready() method.")
     return _GLOBAL_CLIENT_MANAGER
 
-def get_agent_instance(agent_role_name: str) -> GenericAgent:
+def get_agent_instance(class_name: Any, agent_role_name: str) -> GenericAgent:
     try:
-        role_config = AgentRoleConfig.objects.get(name=agent_role_name)
+        role_config = class_name.objects.get(name=agent_role_name)
         client_manager = get_global_client_manager()
         if client_manager is None:
             raise RuntimeError("ClientManager is not initialized in AgentsConfig.")

@@ -13,11 +13,65 @@ from rest_framework.response import Response
 
 from .models import KuhlthauStage, ResearchWorkflowState
 from .serializers import (WorkflowChatInputRequestSerializer,
-                          WorkflowChatInputResponseSerializer)
-from .utils import atomic_read_and_lock_initiation_data
+                          WorkflowChatInputResponseSerializer,
+                          ChatEntryHistorySerializer)
+from .utils import atomic_read_and_lock_initiation_data, get_chat_history_entries
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+
+
+class ChatHistoryEntryView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Retrieve Chat History for Workflow Session",
+        description=(
+            "Fetches the complete chat history associated with a specific workflow session identified by session_id."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the workflow session.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        request=ChatEntryHistorySerializer,
+        responses={
+            200: ChatEntryHistorySerializer,
+            400: OpenApiTypes.OBJECT,
+            403: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        },
+        examples=[
+            OpenApiExample(
+                'Successful Persistence',
+                value={
+                    "id": 1,
+                    "role": "user",
+                    "content": "Hello, how can I assist you?",
+                    "name": "Explorer Agent",
+                    "sequence_number": 1,
+                    "timestamp": "2024-01-01T12:00:00Z"
+                },
+                response_only=True,
+                status_codes=['200']
+            ),
+            OpenApiExample(
+                'Invalid Data',
+                value={"error": "Invalid input data."},
+                response_only=True,
+                status_codes=['400']
+            ),
+        ]
+    )
+    async def get(self, request, session_id):
+        data = await get_chat_history_entries(session_id)
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class WorkflowChatInputView(APIView):
@@ -106,7 +160,7 @@ class WorkflowChatInputView(APIView):
             "last_da_execution_time": phase_data.last_da_execution_time.isoformat() if phase_data.last_da_execution_time else None,
             "keyword_stability_count": phase_data.keyword_stability_count,
             "da_activation_threshold": phase_data.da_activation_threshold,
-            "current_chat_history": workflow_state.chat_history_entries.all()
+            "current_chat_history": await get_chat_history_entries(session_id)
         }
 
         publish_event.delay(

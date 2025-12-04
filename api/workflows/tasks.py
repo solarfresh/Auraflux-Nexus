@@ -12,7 +12,7 @@ from .models import ChatHistoryEntry, ResearchWorkflowState
 logger = logging.getLogger(__name__)
 
 @celery_app.task(name=PersistChatEntry.name, ignore_result=True)
-def persist_chat_entry(self, session_id: str, role: str, content: str, name: str, sequence_number: int) -> bool:
+def persist_chat_entry(event_type: str, payload: dict):
     """
     Celery task to asynchronously persist a single chat message entry
     to the ChatHistoryEntry database table.
@@ -28,6 +28,11 @@ def persist_chat_entry(self, session_id: str, role: str, content: str, name: str
         bool: True if the entry was successfully persisted, False otherwise.
     """
     task = persist_chat_entry
+    session_id = payload.get('session_id')
+    role = payload.get('role')
+    content = payload.get('content')
+    name = payload.get('name')
+    sequence_number = payload.get('sequence_number')
 
     try:
         # Look up the ResearchWorkflowState instance
