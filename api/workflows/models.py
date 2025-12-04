@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth import get_user_model
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
@@ -77,6 +79,74 @@ class ResearchWorkflowState(models.Model):
         verbose_name_plural = "Research Workflow States"
 
 
+class ChatHistoryEntry(models.Model):
+    """
+    Stores individual chat messages for a research workflow,
+    matching the frontend's ChatMessage interface structure and linked to the
+    overall workflow state.
+    """
+
+    # Role choices, corresponding to 'user' | 'system' on the frontend
+    SENDER_ROLES = (
+        ('user', 'User'),
+        ('system', 'System/Agent'),
+    )
+
+    # Explicitly defining a UUID as the primary key (PK), matching the frontend's 'id: string'
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="Unique identifier (UUID) for the chat message, corresponding to the frontend's ID."
+    )
+
+    # --- Linkage to Workflow ---
+    workflow_state = models.ForeignKey(
+        ResearchWorkflowState,
+        on_delete=models.CASCADE,
+        related_name='chat_history_entries',
+        help_text="Foreign key linking the message to the parent research workflow session."
+    )
+
+    # --- Core Message Data (Matching Frontend Interface) ---
+    # The role of the sender, corresponding to the frontend's 'role'
+    role = models.CharField(
+        max_length=10,
+        choices=SENDER_ROLES,
+        help_text="The role of the sender ('user' or 'system')."
+    )
+    # The actual message content, corresponding to the frontend's 'content'
+    content = models.TextField(
+        help_text="The text content of the chat message."
+    )
+    # The specific name or label of the sender, corresponding to the frontend's 'name'
+    name = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Specific sender identifier (e.g., username, 'Explorer Agent', 'Data Agent')."
+    )
+
+    # --- Metadata & Ordering ---
+    timestamp = models.DateTimeField(
+        auto_now_add=True,
+        help_text="The exact time the message was recorded."
+    )
+
+    # Ensures the absolute chronological order of the messages
+    sequence_number = models.IntegerField(
+        help_text="The sequential order of the message within the workflow's history."
+    )
+
+    def __str__(self):
+        return f"[{self.timestamp.strftime('%H:%M')}] {self.name} ({self.role}): {self.content[:50]}..."
+
+    class Meta:
+        verbose_name = "Chat History Entry"
+        verbose_name_plural = "Chat History Entries"
+        ordering = ['timestamp', 'sequence_number']
+
+
 class InitiationPhaseData(models.Model):
     """
     Data Plane Model: Stores all phase-specific outputs, metrics,
@@ -126,10 +196,6 @@ class InitiationPhaseData(models.Model):
     )
 
     # --- Detailed Agent Data & History (Verbose Storage) ---
-    chat_history = JSONField(
-        default=list,
-        help_text="Stores the sequential conversation history for context passing."
-    )
     unverified_keywords = ArrayField(
         models.CharField(max_length=100),
         default=list,

@@ -17,6 +17,11 @@ class InitiationSKEResponseComputed:
     name = ""
     queue = Queue.DEFAULT
 
+
+class PersistChatEntry:
+    name = "persist_chat_entry"
+    queue = Queue.DEFAULT
+
 # INITIATION_CHAT_INPUT_REQUESTED = "handle_initiation_chat_input_request_event"
 # INITIATION_DA_VALIDATION_REQUESTED = ""
 # INITIATION_EA_STREAM_REQUEST = "handle_initiation_ea_stream_request_event"

@@ -1,23 +1,18 @@
-import json
 import logging
-import uuid
 from datetime import datetime
 
 from asgiref.sync import async_to_sync
-from auraflux_core.core.agents.generic_agent import GenericAgent
-from auraflux_core.core.schemas.agents import AgentConfig
 from auraflux_core.core.schemas.messages import Message
 from core.celery_app import celery_app
-from django.apps import apps
 from django.utils import timezone
 from messaging.constants import (InitiationEAStreamCompleted,
                                  InitiationEAStreamRequest,
-                                 InitiationSKEResponseComputed)
+                                 InitiationSKEResponseComputed,
+                                 PersistChatEntry)
 from messaging.tasks import publish_event
 from realtime.utils import send_ws_notification
 
-from .models import AgentRoleConfig
-from .utils import get_global_client_manager
+from .utils import get_agent_instance
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +41,10 @@ def handle_initiation_ea_stream_complete_event(event_type: str, payload: dict):
     da_threshold = payload.get('da_activation_threshold', 0.35)
     last_da_execution_time_str = payload.get('last_da_execution_time')
 
+    if agent_role_name is None:
+        logger.error("Task %s: Missing SKE agent role name. Aborting.", task_id)
+        return
+
     if not full_response_text:
         logger.error("Task %s: Missing full_response_text. Cannot perform SKE analysis.", task_id)
         return
@@ -54,27 +53,12 @@ def handle_initiation_ea_stream_complete_event(event_type: str, payload: dict):
     s_new = clarity_score_old
     k_pre = []
 
+    agent = get_agent_instance(agent_role_name)
+
     try:
-        # Load Configuration (Coupling to the AGENTS app's local model)
-        role_config = AgentRoleConfig.objects.get(name=agent_role_name)
-        client_manager = get_global_client_manager()
-        # agents_app_config = apps.get_app_config('agents')
-        # client_manager = getattr(agents_app_config, 'client_manager', None)
-        if client_manager is None:
-            raise RuntimeError("ClientManager is not initialized in AgentsConfig.")
-
         current_chat_history.append(full_response_text)
-
         messages = [Message(**msg) for msg in current_chat_history]
 
-        agent = GenericAgent(
-            config=AgentConfig(
-                name=role_config.name,
-                system_message=role_config.system_prompt,
-                model=role_config.llm_parameters.get('model_name', 'gemini-2.0-flash'),
-            ),
-            client_manager=client_manager
-        )
         ske_output = async_to_sync(agent.generate)(messages=messages)
         s_new = ske_output.get('clarity_score', clarity_score_old)
         k_pre = ske_output.get('extracted_keywords', [])
@@ -157,27 +141,31 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         logger.error("Task %s: Missing critical fields in payload. Aborting.", task_id)
         return
 
+    if agent_role_name is None:
+        logger.error("Task %s: Missing Explorer agent role name. Aborting.", task_id)
+        return
+
     if user_id is None:
         logger.error("Task %s: Missing user_id in payload. Aborting.", task_id)
         return
 
     logger.info("Task %s: Starting EA streaming for session %s.", task_id, session_id)
 
+    persist_chat_entry_payload = {
+        "session_id": session_id,
+        "role": "user",
+        "content": user_message,
+        "name": "User",
+        "sequence_number": len(current_chat_history) + 1,
+    }
+    publish_event.delay(
+        event_type=PersistChatEntry.name,
+        payload=persist_chat_entry_payload,
+        queue=PersistChatEntry.queue
+    )
+
+    agent = get_agent_instance(agent_role_name)
     try:
-        role_config = AgentRoleConfig.objects.get(name=agent_role_name)
-        client_manager = get_global_client_manager()
-        if client_manager is None:
-            raise RuntimeError("ClientManager is not initialized in AgentsConfig.")
-
-        agent = GenericAgent(
-            config=AgentConfig(
-                name=role_config.name,
-                system_message=role_config.system_prompt,
-                model=role_config.llm_parameters.get('model_name', 'gemini-2.0-flash'),
-            ),
-            client_manager=client_manager
-        )
-
         response_stream = agent.generate_stream(
             message=Message(role="user", content=user_message, name="User"),
             chat_history=[Message(**msg) for msg in current_chat_history]
@@ -186,7 +174,6 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         for chunk in response_stream:
             text_chunk = chunk.content if chunk.content else ""
             full_response_text += text_chunk
-            logger.info(f"full_response_text: {full_response_text}")
             send_ws_notification(
                 user_id=user_id,
                 event_type="initiation_ea_stream",
@@ -209,6 +196,19 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         logger.info("Task %s: EA streaming complete.", task_id)
     except Exception as e:
         logger.critical("Task %s: EA streaming failed for session %s: %s", task_id, session_id, str(e))
+
+    persist_chat_entry_payload = {
+        "session_id": session_id,
+        "role": "system",
+        "content": full_response_text,
+        "name": agent_role_name,
+        "sequence_number": len(current_chat_history) + 2,
+    }
+    publish_event.delay(
+        event_type=PersistChatEntry.name,
+        payload=persist_chat_entry_payload,
+        queue=PersistChatEntry.queue
+    )
 
     # # Publish Event to Trigger SKE Computation
     # # SKE Task needs the full text and all decision context

@@ -106,7 +106,7 @@ class WorkflowChatInputView(APIView):
             "last_da_execution_time": phase_data.last_da_execution_time.isoformat() if phase_data.last_da_execution_time else None,
             "keyword_stability_count": phase_data.keyword_stability_count,
             "da_activation_threshold": phase_data.da_activation_threshold,
-            "current_chat_history": phase_data.chat_history
+            "current_chat_history": workflow_state.chat_history_entries.all()
         }
 
         publish_event.delay(
