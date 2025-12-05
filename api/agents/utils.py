@@ -96,6 +96,9 @@ async def get_agent_response(agent_config_class, agent_role_name, prompt_text=No
     except Exception as e:
         raise e
 
+def get_handle_topic_refinement_agent_request_key(session_id: str) -> str:
+    return f"handle_topic_refinement_agent_request:{session_id}"
+
 def set_global_client_manager(client_manager: Any):
     """Sets the initialized ClientManager instance."""
     global _GLOBAL_CLIENT_MANAGER

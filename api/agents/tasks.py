@@ -1,5 +1,6 @@
 import logging
 
+from django.core.cache import cache
 from asgiref.sync import async_to_sync
 from auraflux_core.core.schemas.messages import Message
 from core.celery_app import celery_app
@@ -10,7 +11,7 @@ from messaging.tasks import publish_event
 from realtime.utils import send_ws_notification
 
 from .models import AgentRoleConfig
-from .utils import get_agent_instance, get_agent_response
+from .utils import get_agent_instance, get_agent_response, get_handle_topic_refinement_agent_request_key
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +25,18 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
     2. Publishes TOPIC_STABILITY_UPDATED event for persisting structured data (Sidebar update).
     3. Publishes a new event to trigger the Incremental Summarizer Agent.
     """
+    session_id = payload.get('session_id', '')
+    lock_key = get_handle_topic_refinement_agent_request_key(session_id)
+    if cache.get(lock_key):
+        return
+    else:
+        cache.set(lock_key, event_type)
+
     task_id = handle_topic_refinement_agent_request.request.id
     chat_history = payload.get('recent_turns_of_chat_history')
     conversation_summary_of_old_history = payload.get('conversation_summary_of_old_history')
 
     # Extract necessary fields for TR Agent (Structured output focused)
-    session_id = payload.get('session_id')
     tr_agent_role_name = payload.get('tr_agent_role_name')
     # Context required for TR Agent: full prompt template data, including history, summary, etc.
     tr_agent_input_data = {
@@ -70,8 +77,8 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
     }
     sum_agent_output_json = async_to_sync(get_agent_response)(
         AgentRoleConfig,
-        tr_agent_role_name,
-        rendered_data=tr_agent_input_data,
+        sum_agent_role_name,
+        rendered_data=rendered_data,
         output_format='json'
     )
 
@@ -93,6 +100,7 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
         queue=TopicStabilityUpdated.queue
     )
 
+    cache.delete(lock_key)
     logger.info("Task %s: update topic stability events published successfully.", task_id)
 
 @celery_app.task(name=InitiationEAStreamRequest.name, ignore_result=True)
