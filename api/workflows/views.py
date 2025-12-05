@@ -74,7 +74,7 @@ class ChatHistoryEntryView(APIView):
         ]
     )
     async def get(self, request, session_id):
-        data = await get_serialized_data({'session_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
+        data = await get_serialized_data({'workflow_state_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
         return Response(data, status=status.HTTP_200_OK)
 
 
@@ -166,7 +166,7 @@ class WorkflowChatInputView(APIView):
             "conversation_summary_of_old_history": phase_data.conversation_summary,
             "latest_reflection_entry": phase_data.latest_reflection_entry.entry_text if phase_data.latest_reflection_entry is not None else '',
             'last_analysis_sequence_number': phase_data.last_analysis_sequence_number,
-            "current_chat_history": await get_serialized_data({'session_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
+            "current_chat_history": await get_serialized_data({'workflow_state_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
         }
 
         publish_event.delay(

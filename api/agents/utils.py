@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Any, Dict, Optional, Tuple
 
+from asgiref.sync import async_to_sync
 from auraflux_core.core.agents.generic_agent import GenericAgent
 from auraflux_core.core.schemas.agents import AgentConfig
 from auraflux_core.core.schemas.messages import Message
@@ -57,7 +58,7 @@ def compose_prompt(
         logger.critical(f"Error during prompt template rendering: {e}")
         return None
 
-async def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, rendered_data=None, output_format: str = 'text') -> Any:
+def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, rendered_data=None, output_format: str = 'text') -> Any:
     """
     Retrieves the agent response based on either a direct prompt text or rendered data.
 
@@ -82,7 +83,7 @@ async def get_agent_response(agent_config_class, agent_role_name, prompt_text=No
         raise ValueError("Unable to compose prompt: insufficient data provided.")
 
     try:
-        message = await agent.generate(
+        message = async_to_sync(agent.generate)(
             messages=[Message(role="user", content=prompt, name='User')]
         )
 

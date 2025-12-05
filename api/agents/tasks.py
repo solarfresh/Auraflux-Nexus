@@ -1,9 +1,8 @@
 import logging
 
-from django.core.cache import cache
-from asgiref.sync import async_to_sync
 from auraflux_core.core.schemas.messages import Message
 from core.celery_app import celery_app
+from django.core.cache import cache
 from messaging.constants import (InitiationEAStreamRequest, PersistChatEntry,
                                  TopicRefinementAgentRequest,
                                  TopicStabilityUpdated)
@@ -11,7 +10,8 @@ from messaging.tasks import publish_event
 from realtime.utils import send_ws_notification
 
 from .models import AgentRoleConfig
-from .utils import get_agent_instance, get_agent_response, get_handle_topic_refinement_agent_request_key
+from .utils import (get_agent_instance, get_agent_response,
+                    get_handle_topic_refinement_agent_request_key)
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
 
     logger.info("Task %s: Starting TR Agent execution for session %s.", task_id, session_id)
 
-    tr_agent_output_json = async_to_sync(get_agent_response)(
+    tr_agent_output_json = get_agent_response(
         AgentRoleConfig,
         tr_agent_role_name,
         rendered_data=tr_agent_input_data,
@@ -75,18 +75,19 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
             'locked_scope_elements_list': payload.get('locked_scope_elements_list'),
         }
     }
-    sum_agent_output_json = async_to_sync(get_agent_response)(
+    sum_agent_output_json = get_agent_response(
         AgentRoleConfig,
         sum_agent_role_name,
         rendered_data=rendered_data,
         output_format='json'
     )
 
+    current_research_question = tr_agent_output_json.get('current_research_question')
     topic_stability_updated_payload = {
         "session_id": session_id,
         "new_stability_score": tr_agent_output_json.get('new_stability_score'),
         'is_topic_too_niche': tr_agent_output_json.get('is_topic_too_niche'),
-        'current_research_question': tr_agent_output_json.get('current_research_question'),
+        'current_research_question': '' if current_research_question is None else current_research_question,
         'refined_keywords_to_lock': tr_agent_output_json.get('refined_keywords_to_lock'),
         'refined_scope_to_lock': tr_agent_output_json.get('refined_scope_to_lock'),
         'updated_summary': sum_agent_output_json.get('updated_summary', ''),
@@ -119,7 +120,7 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
     user_message = payload.get('user_message')
     agent_role_name = payload.get('ea_agent_role_name')
     current_chat_history = payload.get('current_chat_history', [])
-    last_analysis_sequence_number = payload.get('last_analysis_sequence_number')
+    last_analysis_sequence_number = payload.get('last_analysis_sequence_number', 0)
 
     current_chat_history_length = len(current_chat_history)
 
@@ -198,7 +199,7 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         queue=PersistChatEntry.queue
     )
 
-    if current_chat_history - 5 > last_analysis_sequence_number:
+    if current_chat_history_length - 5 > last_analysis_sequence_number:
         recent_turns_of_chat_history = current_chat_history[last_analysis_sequence_number:]
     else:
         recent_turns_of_chat_history = current_chat_history[-7:]

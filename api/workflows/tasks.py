@@ -54,7 +54,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
     initiation_data.last_analysis_sequence_number = payload.get('last_chat_sequence_number', initiation_data.last_analysis_sequence_number)
 
     # initiation_data.agent_evaluation_count += 1 # Increment evaluation count
-    initiation_data.save(update_fields=['stability_score', 'final_research_question', 'feasibility_status', 'agent_evaluation_count', 'updated_at'])
+    initiation_data.save(update_fields=['stability_score', 'final_research_question', 'feasibility_status', 'updated_at'])
 
     refined_keywords = payload.get('refined_keywords_to_lock', [])
     for keyword_text in refined_keywords:
