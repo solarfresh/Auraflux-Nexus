@@ -7,20 +7,13 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from .models import InitiationPhaseData, ResearchWorkflowState, ChatHistoryEntry
-from .serializers import ChatEntryHistorySerializer
+from .models import InitiationPhaseData, ResearchWorkflowState
 
 if TYPE_CHECKING:
     from users.models import User
 else:
     User = get_user_model()
 
-
-@sync_to_async
-def get_chat_history_entries(session_id: UUID):
-        chat_history_entries = ChatHistoryEntry.objects.filter(workflow_state=session_id).order_by('sequence_number').all()
-        serializer = ChatEntryHistorySerializer(chat_history_entries, many=True)
-        return serializer.data
 
 @sync_to_async
 def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tuple[ResearchWorkflowState, InitiationPhaseData]:

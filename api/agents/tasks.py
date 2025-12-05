@@ -33,12 +33,16 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
     session_id = payload.get('session_id')
     agent_role_name = payload.get('tr_agent_role_name')
     # Context required for TR Agent: full prompt template data, including history, summary, etc.
-    tr_agent_input_data = payload.get('tr_agent_input_data', {})
+    tr_agent_input_data = {
+        'final_question_draft': payload.get('final_question_draft'),
+        'locked_keywords_list': payload.get('locked_keywords_list'),
+        'locked_scope_elements_list': payload.get('locked_scope_elements_list'),
+        'conversation_summary_of_old_history': payload.get('conversation_summary_of_old_history'),
+        'latest_reflection_entry': payload.get('latest_reflection_entry'),
+        'recent_turns_of_chat_history': payload.get('recent_turns_of_chat_history'),
+        'latest_user_input': payload.get('latest_user_input')
+    }
     user_id = payload.get('user_id') # Required for error notifications if needed
-
-    if not all([session_id, agent_role_name, tr_agent_input_data]):
-        logger.error("Task %s: Missing critical fields (session_id, role, input_data). Aborting.", task_id)
-        return
 
     if agent_role_name is None:
         logger.error("Task %s: Missing Explorer agent role name. Aborting.", task_id)
@@ -107,6 +111,9 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
     user_message = payload.get('user_message')
     agent_role_name = payload.get('ea_agent_role_name')
     current_chat_history = payload.get('current_chat_history', [])
+    last_analysis_sequence_number = payload.get('last_analysis_sequence_number')
+
+    current_chat_history_length = len(current_chat_history)
 
     if not all([session_id, user_message]):
         logger.error("Task %s: Missing critical fields in payload. Aborting.", task_id)
@@ -127,8 +134,9 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         "role": "user",
         "content": user_message,
         "name": "User",
-        "sequence_number": len(current_chat_history) + 1,
+        "sequence_number": current_chat_history_length + 1,
     }
+    current_chat_history.append(persist_chat_entry_payload)
     publish_event.delay(
         event_type=PersistChatEntry.name,
         payload=persist_chat_entry_payload,
@@ -173,32 +181,37 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         "role": "system",
         "content": full_response_text,
         "name": agent_role_name,
-        "sequence_number": len(current_chat_history) + 2,
+        "sequence_number": current_chat_history_length + 2,
     }
+    current_chat_history.append(persist_chat_entry_payload)
     publish_event.delay(
         event_type=PersistChatEntry.name,
         payload=persist_chat_entry_payload,
         queue=PersistChatEntry.queue
     )
 
-    # # Publish Event to Trigger SKE Computation
-    # # SKE Task needs the full text and all decision context
-    # ske_request_payload = {
-    #     "session_id": session_id,
-    #     "user_message": user_message,
-    #     "full_response_text": full_response_text, # Key input for SKE analysis
+    if current_chat_history - 5 > last_analysis_sequence_number:
+        recent_turns_of_chat_history = current_chat_history[last_analysis_sequence_number:]
+    else:
+        recent_turns_of_chat_history = current_chat_history[-7:]
 
-    #     # Pass all DA decision context from original payload
-    #     "user_id": user_id,
-    #     "current_clarity_score": payload.get('current_clarity_score'),
-    #     "last_da_execution_time": payload.get('last_da_execution_time'),
-    #     "da_activation_threshold": payload.get('da_activation_threshold'),
-    # }
+    tr_agent_request_payload = {
+        'session_id': session_id,
+        'tr_agent_role_name': 'ResearchTopicRefinementAgent',
+        'user_id': user_id,
+        'final_question_draft': payload.get('final_question_draft'),
+        'locked_keywords_list': payload.get('locked_keywords_list'),
+        'locked_scope_elements_list': payload.get('locked_scope_elements_list'),
+        'conversation_summary_of_old_history': payload.get('conversation_summary_of_old_history'),
+        'latest_reflection_entry': payload.get('latest_reflection_entry'),
+        'recent_turns_of_chat_history': recent_turns_of_chat_history,
+        'latest_user_input': user_message
+    }
 
-    # # Publish event to trigger the SKE Task (handle_ske_extraction_task)
-    # publish_event.delay(
-    #     event_type=InitiationEAStreamCompleted.name,
-    #     payload=ske_request_payload,
-    #     queue=InitiationEAStreamCompleted.queue
-    # )
-    # logger.info("Task %s: Published %s event to trigger SKE extraction.", task_id, InitiationEAStreamCompleted.name)
+    # Publish event to trigger the Topic Refinement Agent
+    publish_event.delay(
+        event_type=TopicRefinementAgentRequest.name,
+        payload=tr_agent_request_payload,
+        queue=TopicRefinementAgentRequest.queue
+    )
+    logger.info("Task %s: Published %s event to trigger TR Agent.", task_id, TopicRefinementAgentRequest.name)

@@ -147,6 +147,22 @@ class ChatHistoryEntry(models.Model):
         ordering = ['timestamp', 'sequence_number']
 
 
+class UserReflectionLog(models.Model):
+    """
+    Stores individual user reflection entries for tracking emotional/cognitive state.
+    """
+    session_id = models.CharField(max_length=255, db_index=True)
+    entry_text = models.TextField(help_text="The user's self-reported reflection text.")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Reflection for {self.session_id} at {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+
+
 class InitiationPhaseData(models.Model):
     """
     Data Plane Model: Stores all phase-specific outputs, metrics,
@@ -190,6 +206,15 @@ class InitiationPhaseData(models.Model):
     last_analysis_sequence_number = models.IntegerField(
         default=0,
         help_text="The sequence number of the last chat message included in the latest structured analysis (TR Agent) or summary (SUM Agent). Serves as the checkpoint anchor for the next incremental operation."
+    )
+
+    latest_reflection_entry = models.ForeignKey(
+        'UserReflectionLog',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='analyzed_in_initiation',
+        help_text="The specific reflection log entry that was included in the last TR Agent structured analysis."
     )
 
     # --- Cost Control & Agent Activation Variables (Revising existing fields) ---

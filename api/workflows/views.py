@@ -1,6 +1,7 @@
 import logging
 
 from adrf.views import APIView
+from core.utils import get_serialized_data
 from django.contrib.auth import get_user_model
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
@@ -11,11 +12,14 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import KuhlthauStage, ResearchWorkflowState
-from .serializers import (WorkflowChatInputRequestSerializer,
-                          WorkflowChatInputResponseSerializer,
-                          ChatEntryHistorySerializer)
-from .utils import atomic_read_and_lock_initiation_data, get_chat_history_entries
+from .models import (ChatHistoryEntry, KuhlthauStage, ResearchWorkflowState,
+                     TopicKeyword, TopicScopeElement)
+from .serializers import (ChatEntryHistorySerializer, TopicKeywordSerializer,
+                          TopicScopeElementSerializer,
+                          UserReflectionLogSerializer,
+                          WorkflowChatInputRequestSerializer,
+                          WorkflowChatInputResponseSerializer)
+from .utils import atomic_read_and_lock_initiation_data
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -70,7 +74,7 @@ class ChatHistoryEntryView(APIView):
         ]
     )
     async def get(self, request, session_id):
-        data = await get_chat_history_entries(session_id)
+        data = await get_serialized_data({'session_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
         return Response(data, status=status.HTTP_200_OK)
 
 
@@ -156,11 +160,13 @@ class WorkflowChatInputView(APIView):
             "user_id": user.id,
             "user_message": user_message,
             "ea_agent_role_name": ea_agent_role_name,
-            "current_clarity_score": phase_data.clarity_score,
-            "last_da_execution_time": phase_data.last_da_execution_time.isoformat() if phase_data.last_da_execution_time else None,
-            "keyword_stability_count": phase_data.keyword_stability_count,
-            "da_activation_threshold": phase_data.da_activation_threshold,
-            "current_chat_history": await get_chat_history_entries(session_id)
+            "final_question_draft": phase_data.final_research_question,
+            "locked_keywords_list": await get_serialized_data({'initiation_data_id': session_id, 'status': 'LOCKED'}, TopicKeyword, TopicKeywordSerializer, many=True),
+            "locked_scope_elements_list": await get_serialized_data({'initiation_data_id': session_id, 'status': 'LOCKED'}, TopicScopeElement, TopicScopeElementSerializer, many=True),
+            "conversation_summary_of_old_history": phase_data.conversation_summary,
+            "latest_reflection_entry": phase_data.latest_reflection_entry.entry_text if phase_data.latest_reflection_entry is not None else '',
+            'last_analysis_sequence_number': phase_data.last_analysis_sequence_number,
+            "current_chat_history": await get_serialized_data({'session_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
         }
 
         publish_event.delay(
