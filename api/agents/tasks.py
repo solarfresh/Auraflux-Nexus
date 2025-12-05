@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime
 
@@ -6,120 +7,89 @@ from auraflux_core.core.schemas.messages import Message
 from core.celery_app import celery_app
 from django.utils import timezone
 from messaging.constants import (InitiationEAStreamCompleted,
-                                 InitiationEAStreamRequest,
-                                 InitiationSKEResponseComputed,
-                                 PersistChatEntry)
+                                 InitiationEAStreamRequest, PersistChatEntry,
+                                 TopicRefinementAgentRequest)
 from messaging.tasks import publish_event
 from realtime.utils import send_ws_notification
 
 from .models import AgentRoleConfig
-from .utils import get_agent_instance
+from .utils import compose_prompt, get_agent_instance
 
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name=InitiationEAStreamCompleted.name, ignore_result=True)
-def handle_initiation_ea_stream_complete_event(event_type: str, payload: dict):
+@celery_app.task(name=TopicRefinementAgentRequest.name, ignore_result=True)
+def handle_topic_refinement_agent_request(event_type: str, payload: dict):
     """
-    Consumer task for INITIATION_EA_STREAM_COMPLETED.
+    Consumer task for TOPIC_REFINEMENT_AGENT_REQUEST.
 
-    1. Executes SKE Agent to calculate s_new and k_pre.
-    2. Performs the DA activation check.
-    3. Publishes INITIATION_SKE_RESPONSE_COMPUTED for DB update.
-    4. Publishes INITIATION_DA_VALIDATION_REQUESTED if needed.
+    1. Executes the Topic Refinement Agent (TR Agent) to get structured JSON output.
+    2. Publishes TOPIC_STABILITY_UPDATED event for persisting structured data (Sidebar update).
+    3. Publishes a new event to trigger the Incremental Summarizer Agent.
     """
-    task_id = handle_initiation_ea_stream_complete_event.request.id
+    task_id = handle_topic_refinement_agent_request.request.id
 
-    # Extract Context Data
+    # Extract necessary fields for TR Agent (Structured output focused)
     session_id = payload.get('session_id')
-    user_id = payload.get('user_id')
-    agent_role_name = payload.get('ske_agent_role_name')
-    current_chat_history = payload.get('current_chat_history', [])
-    full_response_text = payload.get('full_response_text', '') # Key data from streaming task
+    agent_role_name = payload.get('tr_agent_role_name')
+    # Context required for TR Agent: full prompt template data, including history, summary, etc.
+    tr_agent_input_data = payload.get('tr_agent_input_data', {})
+    user_id = payload.get('user_id') # Required for error notifications if needed
 
-    # Extract DA Decision Context
-    clarity_score_old = payload.get('current_clarity_score', 0.0)
-    da_threshold = payload.get('da_activation_threshold', 0.35)
-    last_da_execution_time_str = payload.get('last_da_execution_time')
+    if not all([session_id, agent_role_name, tr_agent_input_data]):
+        logger.error("Task %s: Missing critical fields (session_id, role, input_data). Aborting.", task_id)
+        return
 
     if agent_role_name is None:
-        logger.error("Task %s: Missing SKE agent role name. Aborting.", task_id)
+        logger.error("Task %s: Missing Explorer agent role name. Aborting.", task_id)
         return
 
-    if not full_response_text:
-        logger.error("Task %s: Missing full_response_text. Cannot perform SKE analysis.", task_id)
-        return
+    logger.info("Task %s: Starting TR Agent execution for session %s.", task_id, session_id)
 
-    # --- Execute SKE Computation ---
-    s_new = clarity_score_old
-    k_pre = []
-
-    agent = get_agent_instance(AgentRoleConfig, agent_role_name)
+    agent, role_config = get_agent_instance(AgentRoleConfig, agent_role_name)
+    prompt_text = compose_prompt(tr_agent_input_data, role_config.prompt_template, role_config.template_variables)
 
     try:
-        current_chat_history.append(full_response_text)
-        messages = [Message(**msg) for msg in current_chat_history]
+        # TR Agent call uses pre-rendered prompt (tr_agent_input_data is the full prompt text)
+        message = async_to_sync(agent.generate)(
+            messages=[Message(role="user", content=prompt_text, name='User')]
+        )
 
-        ske_output = async_to_sync(agent.generate)(messages=messages)
-        s_new = ske_output.get('clarity_score', clarity_score_old)
-        k_pre = ske_output.get('extracted_keywords', [])
-        logger.info("Task %s: SKE computation complete. S_new: %.2f", task_id, s_new)
+        # Parse the JSON output from the response text
+        structured_output_json = json.loads(message.content.replace('```json', '').replace('```', '').strip())
+
+        logger.info("Task %s: TR Agent returned structured data. Score: %s",
+                    task_id, structured_output_json.get('new_stability_score'))
 
     except Exception as e:
-        logger.critical("Task %s: SKE execution failed: %s", task_id, str(e))
-        # Fallback to old values
+        logger.critical("Task %s: TR Agent execution failed for session %s: %s", task_id, session_id, str(e))
+        # Handle error case (e.g., notify user or set a fallback state)
+        return
 
-    # --- Determine DA Activation ---
-    should_trigger_da = False
-    # Clarity Score Threshold
-    if s_new > da_threshold:
-        # Time elapsed threshold (M seconds) - Logic simplified here
-        time_elapsed_ok = True
-        if last_da_execution_time_str:
-            last_da_execution_time = datetime.fromisoformat(last_da_execution_time_str)
-            time_since_last_run = (timezone.now() - last_da_execution_time).total_seconds()
+    # Publish event to update the sidebar/DB (Topic Stability Data)
+    # publish_event.delay(
+    #     event_type=TopicStabilityUpdated.name,
+    #     payload={
+    #         "session_id": session_id,
+    #         "structured_data": structured_output_json
+    #     },
+    #     queue=TopicStabilityUpdated.queue
+    # )
 
-            # Assuming M=60 seconds as the interval
-            if time_since_last_run < 60:
-                time_elapsed_ok = False
+    # Publish event to trigger the Incremental Summarizer Agent
+    # publish_event.delay(
+    #     event_type=IncrementalSummarizerRequest.name,
+    #     payload={
+    #         "session_id": session_id,
+    #         "sum_agent_role_name": SUM_AGENT_ROLE_NAME, # Assumes a constant defined elsewhere
+    #         # Include necessary data for summarization context, e.g., the last few raw messages
+    #         # For brevity, we assume the summarizer service will fetch the required segment.
+    #     },
+    #     queue=IncrementalSummarizerRequest.queue
+    # )
 
-        # Keyword Stability Count (N turns) - Requires DB lock, deferred
-        # We rely on the DB write task to perform the final check under lock.
-        if time_elapsed_ok:
-            # We preliminarily set the flag. The DB write task will finalize the decision.
-            should_trigger_da = True
+    logger.info("Task %s: TR Agent events published successfully.", task_id)
 
-    # --- Publish SKE Response Computed ---
-    ske_response_payload = {
-        "session_id": session_id,
-        "user_id": user_id,
-        "ai_response_text": full_response_text, # R (for DB history logging)
-        "new_clarity_score": s_new,
-        "new_unverified_keywords": k_pre,
-
-        # Pass the preliminary DA trigger flag to the DB write task
-        "preliminary_da_trigger": should_trigger_da,
-        "last_da_execution_time": last_da_execution_time_str, # Pass context for final lock check
-        # ... (Pass any other necessary DA context)
-    }
-
-    # This triggers the high-priority DB write task
-    publish_event.delay(
-        event_type=InitiationSKEResponseComputed.name,
-        payload=ske_response_payload,
-        queue=InitiationSKEResponseComputed.queue
-    )
-    logger.info("Task %s: Published %s event for DB update.", task_id, InitiationSKEResponseComputed.name)
-
-    # --- Publish DA Validation Request ---
-    # To maintain consistency, the final decision and submission of DA is best done
-    # within the DB write task (INITIATION_SKE_RESPONSE_COMPUTED consumer)
-    # after the atomic update. We omit the direct submission here and let the
-    # DB task handle the final trigger.
-
-    # If the DB task confirms the DA trigger, it will publish INITIATION_DA_VALIDATION_REQUESTED.
-    if should_trigger_da:
-        logger.warning("Task %s: Preliminary DA trigger flag set. Awaiting DB confirmation.", task_id)
 
 @celery_app.task(name=InitiationEAStreamRequest.name, ignore_result=True)
 def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
@@ -165,7 +135,7 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         queue=PersistChatEntry.queue
     )
 
-    agent = get_agent_instance(AgentRoleConfig, agent_role_name)
+    agent, role_config = get_agent_instance(AgentRoleConfig, agent_role_name)
     try:
         response_stream = agent.generate_stream(
             message=Message(role="user", content=user_message, name="User"),

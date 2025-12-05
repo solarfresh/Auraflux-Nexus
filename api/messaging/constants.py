@@ -13,8 +13,8 @@ class InitiationEAStreamCompleted:
     queue = Queue.DEFAULT
 
 
-class InitiationSKEResponseComputed:
-    name = ""
+class TopicRefinementAgentRequest:
+    name = "handle_topic_refinement_agent_request"
     queue = Queue.DEFAULT
 
 
