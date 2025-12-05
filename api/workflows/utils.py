@@ -56,6 +56,14 @@ def create_workflow_state(session_id: UUID, user_id: int, initial_stage: str) ->
         current_stage=initial_stage
     )
 
+def determine_feasibility_status(score: int, is_niche: bool) -> str:
+    """Helper function to determine the final Feasibility Status based on Agent output and rules."""
+    if is_niche or score < 4:
+        return 'LOW'
+    if score >= 8:
+        return 'HIGH'
+    return 'MEDIUM'
+
 @sync_to_async
 def get_workflow_state(session_id: UUID, user_id: int) -> ResearchWorkflowState:
     """

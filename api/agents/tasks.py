@@ -1,19 +1,16 @@
-import json
 import logging
-from datetime import datetime
 
 from asgiref.sync import async_to_sync
 from auraflux_core.core.schemas.messages import Message
 from core.celery_app import celery_app
-from django.utils import timezone
-from messaging.constants import (InitiationEAStreamCompleted,
-                                 InitiationEAStreamRequest, PersistChatEntry,
-                                 TopicRefinementAgentRequest)
+from messaging.constants import (InitiationEAStreamRequest, PersistChatEntry,
+                                 TopicRefinementAgentRequest,
+                                 TopicStabilityUpdated)
 from messaging.tasks import publish_event
 from realtime.utils import send_ws_notification
 
 from .models import AgentRoleConfig
-from .utils import compose_prompt, get_agent_instance
+from .utils import get_agent_instance, get_agent_response
 
 logger = logging.getLogger(__name__)
 
@@ -28,72 +25,75 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
     3. Publishes a new event to trigger the Incremental Summarizer Agent.
     """
     task_id = handle_topic_refinement_agent_request.request.id
+    chat_history = payload.get('recent_turns_of_chat_history')
+    conversation_summary_of_old_history = payload.get('conversation_summary_of_old_history')
 
     # Extract necessary fields for TR Agent (Structured output focused)
     session_id = payload.get('session_id')
-    agent_role_name = payload.get('tr_agent_role_name')
+    tr_agent_role_name = payload.get('tr_agent_role_name')
     # Context required for TR Agent: full prompt template data, including history, summary, etc.
     tr_agent_input_data = {
         'final_question_draft': payload.get('final_question_draft'),
         'locked_keywords_list': payload.get('locked_keywords_list'),
         'locked_scope_elements_list': payload.get('locked_scope_elements_list'),
-        'conversation_summary_of_old_history': payload.get('conversation_summary_of_old_history'),
+        'conversation_summary_of_old_history': conversation_summary_of_old_history,
         'latest_reflection_entry': payload.get('latest_reflection_entry'),
-        'recent_turns_of_chat_history': payload.get('recent_turns_of_chat_history'),
+        'recent_turns_of_chat_history': chat_history,
         'latest_user_input': payload.get('latest_user_input')
     }
     user_id = payload.get('user_id') # Required for error notifications if needed
 
-    if agent_role_name is None:
-        logger.error("Task %s: Missing Explorer agent role name. Aborting.", task_id)
+    if chat_history is None:
+        logger.error("Task %s: Missing chat history for TR Agent. Aborting.", task_id)
         return
 
     logger.info("Task %s: Starting TR Agent execution for session %s.", task_id, session_id)
 
-    agent, role_config = get_agent_instance(AgentRoleConfig, agent_role_name)
-    prompt_text = compose_prompt(tr_agent_input_data, role_config.prompt_template, role_config.template_variables)
+    tr_agent_output_json = async_to_sync(get_agent_response)(
+        AgentRoleConfig,
+        tr_agent_role_name,
+        rendered_data=tr_agent_input_data,
+        output_format='json'
+    )
 
-    try:
-        # TR Agent call uses pre-rendered prompt (tr_agent_input_data is the full prompt text)
-        message = async_to_sync(agent.generate)(
-            messages=[Message(role="user", content=prompt_text, name='User')]
-        )
+    logger.info("Task %s: Starting SUM Agent execution for session %s.", task_id, session_id)
 
-        # Parse the JSON output from the response text
-        structured_output_json = json.loads(message.content.replace('```json', '').replace('```', '').strip())
+    sum_agent_role_name = payload.get('sum_agent_role_name')
+    rendered_data = {
+        "existing_summary": conversation_summary_of_old_history,
+        "new_conversation_segment": chat_history,
+        "current_structured_state": {
+            'final_question_draft': payload.get('final_question_draft'),
+            'locked_keywords_list': payload.get('locked_keywords_list'),
+            'locked_scope_elements_list': payload.get('locked_scope_elements_list'),
+        }
+    }
+    sum_agent_output_json = async_to_sync(get_agent_response)(
+        AgentRoleConfig,
+        tr_agent_role_name,
+        rendered_data=tr_agent_input_data,
+        output_format='json'
+    )
 
-        logger.info("Task %s: TR Agent returned structured data. Score: %s",
-                    task_id, structured_output_json.get('new_stability_score'))
-
-    except Exception as e:
-        logger.critical("Task %s: TR Agent execution failed for session %s: %s", task_id, session_id, str(e))
-        # Handle error case (e.g., notify user or set a fallback state)
-        return
+    topic_stability_updated_payload = {
+        "session_id": session_id,
+        "new_stability_score": tr_agent_output_json.get('new_stability_score'),
+        'is_topic_too_niche': tr_agent_output_json.get('is_topic_too_niche'),
+        'current_research_question': tr_agent_output_json.get('current_research_question'),
+        'refined_keywords_to_lock': tr_agent_output_json.get('refined_keywords_to_lock'),
+        'refined_scope_to_lock': tr_agent_output_json.get('refined_scope_to_lock'),
+        'updated_summary': sum_agent_output_json.get('updated_summary', ''),
+        'last_chat_sequence_number': chat_history[-1]['sequence_number']
+    }
 
     # Publish event to update the sidebar/DB (Topic Stability Data)
-    # publish_event.delay(
-    #     event_type=TopicStabilityUpdated.name,
-    #     payload={
-    #         "session_id": session_id,
-    #         "structured_data": structured_output_json
-    #     },
-    #     queue=TopicStabilityUpdated.queue
-    # )
+    publish_event.delay(
+        event_type=TopicStabilityUpdated.name,
+        payload=topic_stability_updated_payload,
+        queue=TopicStabilityUpdated.queue
+    )
 
-    # Publish event to trigger the Incremental Summarizer Agent
-    # publish_event.delay(
-    #     event_type=IncrementalSummarizerRequest.name,
-    #     payload={
-    #         "session_id": session_id,
-    #         "sum_agent_role_name": SUM_AGENT_ROLE_NAME, # Assumes a constant defined elsewhere
-    #         # Include necessary data for summarization context, e.g., the last few raw messages
-    #         # For brevity, we assume the summarizer service will fetch the required segment.
-    #     },
-    #     queue=IncrementalSummarizerRequest.queue
-    # )
-
-    logger.info("Task %s: TR Agent events published successfully.", task_id)
-
+    logger.info("Task %s: update topic stability events published successfully.", task_id)
 
 @celery_app.task(name=InitiationEAStreamRequest.name, ignore_result=True)
 def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
@@ -198,6 +198,7 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
     tr_agent_request_payload = {
         'session_id': session_id,
         'tr_agent_role_name': 'ResearchTopicRefinementAgent',
+        'sum_agent_role_name': 'IncrementalConversationSummarizer',
         'user_id': user_id,
         'final_question_draft': payload.get('final_question_draft'),
         'locked_keywords_list': payload.get('locked_keywords_list'),

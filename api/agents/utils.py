@@ -1,8 +1,10 @@
+import json
 import logging
-from typing import Any, Optional, Tuple, Dict
+from typing import Any, Dict, Optional, Tuple
 
 from auraflux_core.core.agents.generic_agent import GenericAgent
 from auraflux_core.core.schemas.agents import AgentConfig
+from auraflux_core.core.schemas.messages import Message
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +56,45 @@ def compose_prompt(
     except Exception as e:
         logger.critical(f"Error during prompt template rendering: {e}")
         return None
+
+async def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, rendered_data=None, output_format: str = 'text') -> Any:
+    """
+    Retrieves the agent response based on either a direct prompt text or rendered data.
+
+    Args:
+        agent_config_class: The class representing the agent configuration.
+        agent_role_name: The role name of the agent.
+        prompt_text: Direct prompt text to send to the agent.
+        rendered_data: Data to be used for composing the prompt.
+        output_format: Desired output format ('text' or 'json').
+    """
+
+    if prompt_text is None and rendered_data is None:
+        raise ValueError("Either prompt_text or rendered_data must be provided.")
+
+    agent, role_config = get_agent_instance(agent_config_class, agent_role_name)
+
+    if prompt_text is not None:
+        prompt = prompt_text
+    elif rendered_data is not None:
+        prompt = compose_prompt(rendered_data, role_config.prompt_template, role_config.template_variables)
+    else:
+        raise ValueError("Unable to compose prompt: insufficient data provided.")
+
+    try:
+        message = await agent.generate(
+            messages=[Message(role="user", content=prompt, name='User')]
+        )
+
+        if output_format == 'json':
+            return json.loads(message.content.replace('```json', '').replace('```', '').strip())
+        elif output_format == 'text':
+            return message.content
+        else:
+            raise ValueError(f"Unsupported output format: {output_format}")
+
+    except Exception as e:
+        raise e
 
 def set_global_client_manager(client_manager: Any):
     """Sets the initialized ClientManager instance."""
