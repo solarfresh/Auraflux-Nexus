@@ -1,7 +1,8 @@
 from adrf.serializers import ModelSerializer, Serializer
 from rest_framework import serializers
 
-from .models import ChatHistoryEntry, UserReflectionLog, TopicKeyword, TopicScopeElement
+from .models import (ChatHistoryEntry, InitiationPhaseData, TopicKeyword,
+                     TopicScopeElement, UserReflectionLog)
 
 
 class ChatEntryHistorySerializer(ModelSerializer):
@@ -50,6 +51,72 @@ class TopicKeywordSerializer(serializers.ModelSerializer):
             'updated_at'
         )
         read_only_fields = ('id', 'confidence_score', 'updated_at')
+
+
+class RefinedTopicSerializer(ModelSerializer):
+    """
+    Serializer to aggregate all necessary data for the Initiation Phase sidebar.
+    Fetches data from InitiationPhaseData and its related models (Keywords, Scope, Reflection).
+    """
+
+    keywords = TopicKeywordSerializer(
+        source='keywords_list',
+        many=True,
+        read_only=True
+    )
+    scope = TopicScopeElementSerializer(
+        source='scope_elements_list',
+        many=True,
+        read_only=True
+    )
+
+    latest_reflection = serializers.CharField(
+        source='latest_reflection_entry.entry_text',
+        read_only=True,
+        allow_null=True,
+        default=None,
+        help_text="The text of the user's latest self-reflection entry."
+    )
+
+    resource_suggestion = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InitiationPhaseData
+        fields = (
+            'stability_score',
+            'feasibility_status',
+            'final_research_question',
+            'keywords',
+            'scope',
+            'latest_reflection',
+            'resource_suggestion',
+        )
+
+        # stability_score -> stabilityScore
+        # final_research_question -> finalQuestion
+        # field_mapping = {
+        #     'stability_score': 'stabilityScore',
+        #     'final_research_question': 'finalQuestion',
+        # }
+
+    # def get_field_names(self, declared_fields: Dict[str, Any], info: Dict[str, Any]) -> list:
+    #     """Dynamically map database names to frontend prop names."""
+    #     fields = super().get_field_names(declared_fields, info)
+    #     mapped_fields = [self.Meta.field_mapping.get(f, f) for f in fields]
+    #     return mapped_fields
+
+    def get_resource_suggestion(self, obj: InitiationPhaseData) -> str:
+        """
+        Calculates and returns a resource search suggestion based on the feasibility status.
+        """
+        status = obj.feasibility_status
+        if status == 'HIGH':
+            return "Focus your next search using specialized academic databases (e.g., Scopus, Web of Science) targeting the specific geographical and time scope."
+        elif status == 'MEDIUM':
+            return "Use a combination of general search engines and credible institutional reports (e.g., OECD, World Bank) to solidify your topic."
+        elif status == 'LOW':
+            return "The topic is highly niche or information-scarce. Start with broad keyword searches and general encyclopedias to establish foundational context before narrowing down."
+        return "Please define your topic further to get a resource suggestion."
 
 
 class UserReflectionLogSerializer(ModelSerializer):

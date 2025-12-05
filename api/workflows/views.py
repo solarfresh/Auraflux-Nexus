@@ -12,14 +12,15 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import (ChatHistoryEntry, KuhlthauStage, ResearchWorkflowState,
-                     TopicKeyword, TopicScopeElement)
-from .serializers import (ChatEntryHistorySerializer, TopicKeywordSerializer,
-                          TopicScopeElementSerializer,
+from .models import (ChatHistoryEntry, InitiationPhaseData, KuhlthauStage,
+                     ResearchWorkflowState, TopicKeyword, TopicScopeElement)
+from .serializers import (ChatEntryHistorySerializer, RefinedTopicSerializer,
+                          TopicKeywordSerializer, TopicScopeElementSerializer,
                           UserReflectionLogSerializer,
                           WorkflowChatInputRequestSerializer,
                           WorkflowChatInputResponseSerializer)
-from .utils import atomic_read_and_lock_initiation_data
+from .utils import (atomic_read_and_lock_initiation_data,
+                    get_refined_topic_instance)
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -76,6 +77,48 @@ class ChatHistoryEntryView(APIView):
     async def get(self, request, session_id):
         data = await get_serialized_data({'workflow_state_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
         return Response(data, status=status.HTTP_200_OK)
+
+
+class RefinedTopicView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Retrieve Initiation Phase Sidebar Data",
+        description=(
+            "Fetches all structured data (Stability Score, Feasibility, Keywords, Scope, Reflection) "
+            "required to render the Sidebar UI during the INITIATION phase."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the workflow session.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        responses={
+            200: RefinedTopicSerializer,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        }
+    )
+    async def get(self, request, session_id):
+        """
+        Retrieves InitiationPhaseData and related topic components for the sidebar.
+        """
+
+        try:
+            initiation_instance = await get_refined_topic_instance(session_id)
+        except InitiationPhaseData.DoesNotExist:
+            return Response(
+                {"detail": f"Initiation data not found for session {session_id}."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = RefinedTopicSerializer(initiation_instance)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class WorkflowChatInputView(APIView):

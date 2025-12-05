@@ -46,6 +46,20 @@ def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tupl
         return workflow_state, initiation_data
 
 @sync_to_async
+def get_refined_topic_instance(session_id: UUID):
+    initiation_instance = InitiationPhaseData.objects.select_related(
+        'workflow_state',
+        'latest_reflection_entry'
+    ).prefetch_related(
+        'keywords_list',
+        'scope_elements_list'
+    ).get(
+        workflow_state__session_id=session_id
+    )
+
+    return initiation_instance
+
+@sync_to_async
 def create_workflow_state(session_id: UUID, user_id: int, initial_stage: str) -> ResearchWorkflowState:
     """
     Creates a new ResearchWorkflowState instance.
