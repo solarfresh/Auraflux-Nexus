@@ -1,15 +1,16 @@
-import json
 import logging
 import uuid
 
 from core.celery_app import celery_app
 from django.db import transaction
 from messaging.constants import PersistChatEntry, TopicStabilityUpdated
+from realtime.constants import INITIATION_REFINED_TOPIC
 from realtime.utils import send_ws_notification
 
 from .models import (ChatHistoryEntry, InitiationPhaseData,
                      ResearchWorkflowState, TopicKeyword, TopicScopeElement)
-from .utils import determine_feasibility_status
+from .serializers import TopicKeywordSerializer, TopicScopeElementSerializer
+from .utils import determine_feasibility_status, get_resource_suggestion
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,11 @@ def update_topic_stability_data(event_type: str, payload: dict):
     """
     task_id = update_topic_stability_data.request.id
     session_id = payload.get('session_id')
+    user_id = payload.get('user_id')
+
+    if user_id is None:
+        logger.error("Task %s: Missing user_id in payload. Aborting.", task_id)
+        return
 
     try:
         # Fetch the InitiationPhaseData instance linked to the session
@@ -54,7 +60,13 @@ def update_topic_stability_data(event_type: str, payload: dict):
     initiation_data.last_analysis_sequence_number = payload.get('last_chat_sequence_number', initiation_data.last_analysis_sequence_number)
 
     # initiation_data.agent_evaluation_count += 1 # Increment evaluation count
-    initiation_data.save(update_fields=['stability_score', 'final_research_question', 'feasibility_status', 'updated_at'])
+    initiation_data.save(update_fields=[
+        'stability_score',
+        'final_research_question',
+        'feasibility_status',
+        'conversation_summary',
+        'last_chat_sequence_number',
+        'updated_at'])
 
     refined_keywords = payload.get('refined_keywords_to_lock', [])
     for keyword_text in refined_keywords:
@@ -72,6 +84,22 @@ def update_topic_stability_data(event_type: str, payload: dict):
             value=element.get('value'),
             defaults={'status': 'LOCKED'}
         )
+
+    refined_keywords_instance = TopicKeyword.objects.filter(initiation_data=initiation_data).all()
+    refined_scope_elements_instance = TopicScopeElement.objects.filter(initiation_data=initiation_data).all()
+    send_ws_notification(
+        user_id=user_id,
+        event_type=INITIATION_REFINED_TOPIC,
+        payload={
+            "message": "Topic refinement data updated.",
+            'stability_score': initiation_data.stability_score,
+            'feasibility_status': initiation_data.feasibility_status,
+            'final_research_question': initiation_data.conversation_summary,
+            'keywords': TopicKeywordSerializer(refined_keywords_instance).data,
+            'scope':TopicScopeElementSerializer(refined_scope_elements_instance).data,
+            'resource_suggestion': get_resource_suggestion(initiation_data.feasibility_status)
+        }
+    )
 
     logger.info("Task %s: Database update complete for session %s.", task_id, session_id)
 

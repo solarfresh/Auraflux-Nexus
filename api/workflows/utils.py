@@ -78,6 +78,15 @@ def determine_feasibility_status(score: int, is_niche: bool) -> str:
         return 'HIGH'
     return 'MEDIUM'
 
+def get_resource_suggestion(feasibility_status: str) -> str:
+    if feasibility_status == 'HIGH':
+        return "Focus your next search using specialized academic databases (e.g., Scopus, Web of Science) targeting the specific geographical and time scope."
+    elif feasibility_status == 'MEDIUM':
+        return "Use a combination of general search engines and credible institutional reports (e.g., OECD, World Bank) to solidify your topic."
+    elif feasibility_status == 'LOW':
+        return "The topic is highly niche or information-scarce. Start with broad keyword searches and general encyclopedias to establish foundational context before narrowing down."
+    return "Please define your topic further to get a resource suggestion."
+
 @sync_to_async
 def get_workflow_state(session_id: UUID, user_id: int) -> ResearchWorkflowState:
     """

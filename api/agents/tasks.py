@@ -7,6 +7,7 @@ from messaging.constants import (InitiationEAStreamRequest, PersistChatEntry,
                                  TopicRefinementAgentRequest,
                                  TopicStabilityUpdated)
 from messaging.tasks import publish_event
+from realtime.constants import INITIATION_EA_STREAM
 from realtime.utils import send_ws_notification
 
 from .models import AgentRoleConfig
@@ -85,6 +86,7 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
     current_research_question = tr_agent_output_json.get('current_research_question')
     topic_stability_updated_payload = {
         "session_id": session_id,
+        'user_id': user_id,
         "new_stability_score": tr_agent_output_json.get('new_stability_score'),
         'is_topic_too_niche': tr_agent_output_json.get('is_topic_too_niche'),
         'current_research_question': '' if current_research_question is None else current_research_question,
@@ -164,7 +166,7 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
             full_response_text += text_chunk
             send_ws_notification(
                 user_id=user_id,
-                event_type="initiation_ea_stream",
+                event_type=INITIATION_EA_STREAM,
                 payload={
                     "message": "Initiation EA streaming in progress.",
                     "status": "RUNNING",
@@ -174,7 +176,7 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
 
         send_ws_notification(
             user_id=user_id,
-            event_type="initiation_ea_stream",
+            event_type=INITIATION_EA_STREAM,
             payload={
                 "message": "Initiation EA streaming complete.",
                 "status": "COMPLETE",
