@@ -206,6 +206,7 @@ class WorkflowChatInputView(APIView):
             "final_question_draft": phase_data.final_research_question,
             "locked_keywords_list": await get_serialized_data({'initiation_data_id': session_id, 'status': 'LOCKED'}, TopicKeyword, TopicKeywordSerializer, many=True),
             "locked_scope_elements_list": await get_serialized_data({'initiation_data_id': session_id, 'status': 'LOCKED'}, TopicScopeElement, TopicScopeElementSerializer, many=True),
+            "discarded_elements_list": [],
             "conversation_summary_of_old_history": phase_data.conversation_summary,
             "latest_reflection_entry": phase_data.latest_reflection_entry.entry_text if phase_data.latest_reflection_entry is not None else '',
             'last_analysis_sequence_number': phase_data.last_analysis_sequence_number,

@@ -112,10 +112,11 @@ def get_or_create_initiation_data(workflow_state: ResearchWorkflowState) -> Init
     initiation_data, created = InitiationPhaseData.objects.get_or_create(
         workflow_state=workflow_state,
         defaults={
-            'clarity_score': 0.0,
-            'last_da_execution_time': timezone.now(),
-            'keyword_stability_count': 0,
-            'chat_history': []
+            'stability_score': 0.0,
+            'final_research_question': '',
+            'feasibility_status': 'LOW',
+            'conversation_summary': '',
+            'last_analysis_sequence_number': 0
         }
     )
     return initiation_data

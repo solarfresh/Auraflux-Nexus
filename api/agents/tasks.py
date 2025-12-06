@@ -47,7 +47,8 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
         'conversation_summary_of_old_history': conversation_summary_of_old_history,
         'latest_reflection_entry': payload.get('latest_reflection_entry'),
         'recent_turns_of_chat_history': chat_history,
-        'latest_user_input': payload.get('latest_user_input')
+        'latest_user_input': payload.get('latest_user_input'),
+        'discarded_elements_list': payload.get('discarded_elements_list')
     }
     user_id = payload.get('user_id') # Required for error notifications if needed
 
