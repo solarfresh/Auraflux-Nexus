@@ -16,6 +16,21 @@ class AgentRoleConfig(models.Model):
     system_prompt = models.TextField(
         help_text="The instruction set given to the LLM to define its persona and task."
     )
+
+    # Stores the full prompt text with placeholders (e.g., {{final_question_draft}})
+    prompt_template = models.TextField(
+        null=True,
+        blank=True,
+        help_text="The full template text used to render the final prompt, containing all static text and {{variable}} placeholders."
+    )
+
+    # Defines what data needs to be fetched for the template placeholders.
+    template_variables = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="A dictionary defining the dynamic variables required by the prompt_template and their data source/type (e.g., {'final_question_draft': 'DB_FACTS', 'latest_user_input': 'CURRENT_TURN'})."
+    )
+
     output_schema = models.JSONField(
         help_text="The JSON schema defining the required output structure for the LLM response."
     )

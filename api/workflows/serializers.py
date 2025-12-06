@@ -1,70 +1,141 @@
 from adrf.serializers import ModelSerializer, Serializer
 from rest_framework import serializers
 
-from .models import KnowledgeSource, WorkflowState
+from .models import (ChatHistoryEntry, InitiationPhaseData, TopicKeyword,
+                     TopicScopeElement, UserReflectionLog)
+from .utils import get_resource_suggestion
 
 
-class DataLockSerializer(Serializer):
+class ChatEntryHistorySerializer(ModelSerializer):
     """
-    Serializer for the Data Lock signal. No input fields required,
-    but ensures a valid POST request is received.
-    """
-    # This field isn't mandatory but serves as a clear acknowledgment of the action.
-    success = serializers.BooleanField(read_only=True, default=True)
-
-
-class DichotomySuggestionSerializer(Serializer):
-    """
-    Serializer for the computed/suggested strategic dichotomies.
-    Matches the structure required by the ScopeSelector frontend component.
-    """
-    name = serializers.CharField(max_length=100, help_text="The name of the strategic tension (e.g., 'Speed vs. Security').")
-    description = serializers.CharField(help_text="A brief explanation of the tension.")
-    roles = serializers.ListField(
-        child=serializers.CharField(max_length=100),
-        help_text="List of conflicting agent roles assigned to this tension."
-    )
-
-
-class KnowledgeSourceSerializer(ModelSerializer):
-    """
-    Serializer for the KnowledgeSource model, used to represent the list
-    of locked search results nested within the WorkflowState.
+    Serializer used for validating incoming chat message data from the publisher
+    before queuing the persistence task.
     """
     class Meta:
-        model = KnowledgeSource
+        model = ChatHistoryEntry
+        fields = ('id', 'role', 'content', 'name', 'sequence_number', 'timestamp')
+
+
+class TopicScopeElementSerializer(serializers.ModelSerializer):
+    """
+    Serializer for TopicScopeElement model.
+    Used to represent individual scope components (label and value)
+    and their current status (LOCKED or DRAFT) for the Initiation Phase sidebar display.
+    """
+
+    class Meta:
+        model = TopicScopeElement
         fields = (
             'id',
-            'query',
-            'title',
-            'snippet',
-            'url',
-            'source',
-            'locked_at',
+            'label',          # e.g., 'Timeframe', 'Geographical Focus'
+            'value',          # e.g., '2015-2025', 'Brazil and Vietnam'
+            'status',         # The status (LOCKED, DRAFT, DISCARDED)
+            'updated_at'
         )
-        read_only_fields = fields # Sources are typically read-only once saved/locked
+        read_only_fields = ('id', 'updated_at')
 
 
-class WorkflowStateSerializer(serializers.ModelSerializer):
+class TopicKeywordSerializer(serializers.ModelSerializer):
     """
-    Serializer for the WorkflowState model, providing the complete
-    application state to the frontend.
+    Serializer for TopicKeyword model.
+    Used to represent individual keywords and their current status
+    (LOCKED or DRAFT) for the Initiation Phase sidebar display.
     """
-    # Nested field for the locked search results (reverse relationship)
-    # The 'knowledge_sources' name must match the related_name in the ForeignKey field
-    knowledge_sources = KnowledgeSourceSerializer(many=True, read_only=True)
-
-    # We expose the updated_at timestamp to let the frontend know the data's freshness
-    updated_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
-        model = WorkflowState
+        model = TopicKeyword
         fields = (
-            'current_step',
-            'query',
-            'scope_data',
-            'analysis_data',
-            'knowledge_sources',  # Nested sources list
-            'updated_at',
+            'id',
+            'text',
+            'status',
+            'confidence_score',
+            'updated_at'
         )
-        read_only_fields = ('current_step', 'updated_at') # Most fields are read-only on GET
+        read_only_fields = ('id', 'confidence_score', 'updated_at')
+
+
+class RefinedTopicSerializer(ModelSerializer):
+    """
+    Serializer to aggregate all necessary data for the Initiation Phase sidebar.
+    Fetches data from InitiationPhaseData and its related models (Keywords, Scope, Reflection).
+    """
+
+    keywords = TopicKeywordSerializer(
+        source='keywords_list',
+        many=True,
+        read_only=True
+    )
+    scope = TopicScopeElementSerializer(
+        source='scope_elements_list',
+        many=True,
+        read_only=True
+    )
+
+    latest_reflection = serializers.CharField(
+        source='latest_reflection_entry.entry_text',
+        read_only=True,
+        allow_null=True,
+        default=None,
+        help_text="The text of the user's latest self-reflection entry."
+    )
+
+    resource_suggestion = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InitiationPhaseData
+        fields = (
+            'stability_score',
+            'feasibility_status',
+            'final_research_question',
+            'keywords',
+            'scope',
+            'latest_reflection',
+            'resource_suggestion',
+        )
+
+        # stability_score -> stabilityScore
+        # final_research_question -> finalQuestion
+        # field_mapping = {
+        #     'stability_score': 'stabilityScore',
+        #     'final_research_question': 'finalQuestion',
+        # }
+
+    # def get_field_names(self, declared_fields: Dict[str, Any], info: Dict[str, Any]) -> list:
+    #     """Dynamically map database names to frontend prop names."""
+    #     fields = super().get_field_names(declared_fields, info)
+    #     mapped_fields = [self.Meta.field_mapping.get(f, f) for f in fields]
+    #     return mapped_fields
+
+    def get_resource_suggestion(self, obj: InitiationPhaseData) -> str:
+        """
+        Calculates and returns a resource search suggestion based on the feasibility status.
+        """
+        status = obj.feasibility_status
+        return get_resource_suggestion(status)
+
+
+class UserReflectionLogSerializer(ModelSerializer):
+    """
+    Serializer for user reflection logs.
+    """
+    class Meta:
+        model = UserReflectionLog
+        fields = ('id', 'user_id', 'reflection_text', 'created_at')
+
+
+class WorkflowChatInputRequestSerializer(Serializer):
+    user_message = serializers.CharField(
+        help_text="The chat message input from the user."
+    )
+    ea_agent_role_name = serializers.CharField(
+        help_text="The role name of the Explorer Agent to handle the chat input.",
+        default="ExplorerAgent"
+    )
+
+class WorkflowChatInputResponseSerializer(Serializer):
+    status = serializers.CharField(
+        help_text="Status of the chat input processing."
+    )
+    message = serializers.CharField(
+        help_text="Detailed message regarding the processing outcome."
+    )

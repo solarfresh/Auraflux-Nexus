@@ -28,6 +28,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: auraflux-nexus:latest
     container_name: auraflux_nexus
     # restart: always
     command: uvicorn core.asgi:application --host 0.0.0.0 --port 8000
@@ -43,16 +44,30 @@ services:
     networks:
       - auraflux_network
 
-  worker:
+  worker_default:
     <<: *backend
-    container_name: auraflux_worker
+    container_name: auraflux_worker_default
     env_file:
       - ./docker-vars.env
       - ./docker-vars.override.env
     ports: []
     volumes:
       - ./api:/api
-    command: celery -A core.celery_app:celery_app worker -c 2 -l info
+    command: celery -A core.celery_app:celery_app worker -Q celery,default -c 2 -l info
+    networks:
+      - auraflux_network
+
+  worker_stream:
+    <<: *backend
+    container_name: auraflux_worker_stream
+    env_file:
+      - ./docker-vars.env
+      - ./docker-vars.override.env
+    ports: []
+    volumes:
+      - ./lib/auraflux_core:/usr/local/lib/python3.13/site-packages/auraflux_core
+      - ./api:/api
+    command: celery -A core.celery_app:celery_app worker -Q stream -c 2 -l info
     networks:
       - auraflux_network
 

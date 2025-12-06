@@ -1,198 +1,227 @@
 import logging
 
 from adrf.views import APIView
-from core.utils import get_user_search_cache_key
+from core.utils import get_serialized_data
 from django.contrib.auth import get_user_model
-from messaging.constants import DICHOTOMY_SUGGESTION_REQUESTED
-from messaging.tasks import publish_event  # CRITICAL: Import from new app
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
+                                   extend_schema)
+from messaging.constants import InitiationEAStreamRequest
+from messaging.tasks import publish_event
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import KnowledgeSource, WorkflowState
-from .serializers import (DataLockSerializer, DichotomySuggestionSerializer,
-                          WorkflowStateSerializer)
-from .utils import (get_and_persist_cached_results,
-                    get_or_create_workflow_state, update_workflow_state)
+from .models import (ChatHistoryEntry, InitiationPhaseData, KuhlthauStage,
+                     ResearchWorkflowState, TopicKeyword, TopicScopeElement)
+from .serializers import (ChatEntryHistorySerializer, RefinedTopicSerializer,
+                          TopicKeywordSerializer, TopicScopeElementSerializer,
+                          UserReflectionLogSerializer,
+                          WorkflowChatInputRequestSerializer,
+                          WorkflowChatInputResponseSerializer)
+from .utils import (atomic_read_and_lock_initiation_data,
+                    get_refined_topic_instance)
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
-class DataLockAPIView(APIView):
-    """
-    Signals the finalization of the Knowledge Base setup
-    and atomically transitions the workflow step from 'SEARCH' to 'SCOPE'.
-    """
+class ChatHistoryEntryView(APIView):
+
     permission_classes = [IsAuthenticated]
 
-    async def post(self, request, *args, **kwargs):
-        user = request.user
-        query = request.data.get('query', '').strip()
-
-        if not query:
-            return Response({"error": "Query parameter is required."}, status=400)
-
-        # Retrieve the Workflow State
-        try:
-            workflow_state = await get_or_create_workflow_state(user)
-        except Exception:
-            # Handle case where user has no state (shouldn't happen if state is created on user login/signup)
-            logging.error("Failed to retrieve or create workflow state for user ID %s", user.id)
-            return Response(
-                {"error": "Could not retrieve or create workflow state."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    @extend_schema(
+        summary="Retrieve Chat History for Workflow Session",
+        description=(
+            "Fetches the complete chat history associated with a specific workflow session identified by session_id."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the workflow session.",
+                required=True,
+                type=OpenApiTypes.UUID,
             )
-
-        # Check Preconditions
-        if workflow_state.current_step != 'SEARCH':
-            return Response(
-                {"error": f"Data Lock is only allowed in the SEARCH step. Current step: {workflow_state.current_step}."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        cache_key = get_user_search_cache_key(user.id)
-
-        try:
-            data_persisted = await get_and_persist_cached_results(user, cache_key)
-        except Exception as e:
-            # Catch database or transactional errors from within the utility
-            return Response(
-                {"error": f"Database transaction failed during data lock: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-        # Final Validation Check (Did the cache contain data?)
-        if not data_persisted:
-            return Response(
-                {"error": "Cannot lock data. No search results found in temporary storage (cache). Please run a search first."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Retrieve the updated state for the response (The utility already changed it to 'SCOPE')
-        try:
-            updated_state = await update_workflow_state(user, query=query)
-        except Exception as e:
-            logging.error("Failed to retrieve updated workflow state after data lock: %s", str(e))
-            return Response(
-                {"error": "Failed to retrieve updated workflow state after data lock."},)
-
-        # Return Success Response
-        serializer = DataLockSerializer(data={'success': True})
-        serializer.is_valid(raise_exception=True)
-
-        return Response(
-            {"message": "Knowledge Base locked successfully.", "new_step": updated_state.current_step},
-            status=status.HTTP_200_OK
-        )
+        ],
+        request=ChatEntryHistorySerializer,
+        responses={
+            200: ChatEntryHistorySerializer,
+            400: OpenApiTypes.OBJECT,
+            403: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        },
+        examples=[
+            OpenApiExample(
+                'Successful Persistence',
+                value={
+                    "id": 1,
+                    "role": "user",
+                    "content": "Hello, how can I assist you?",
+                    "name": "Explorer Agent",
+                    "sequence_number": 1,
+                    "timestamp": "2024-01-01T12:00:00Z"
+                },
+                response_only=True,
+                status_codes=['200']
+            ),
+            OpenApiExample(
+                'Invalid Data',
+                value={"error": "Invalid input data."},
+                response_only=True,
+                status_codes=['400']
+            ),
+        ]
+    )
+    async def get(self, request, session_id):
+        data = await get_serialized_data({'workflow_state_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
+        return Response(data, status=status.HTTP_200_OK)
 
 
-class DichotomySuggestionAPIView(APIView):
-    """
-    Retrieves dynamically suggested strategic dichotomies (tensions)
-    based on the user's locked KnowledgeSource search results.
-    """
+class RefinedTopicView(APIView):
+
     permission_classes = [IsAuthenticated]
 
-    # Making this method async prepares it for the actual RAG/computation logic later
-    async def get(self, request, *args, **kwargs):
-        user = request.user
+    @extend_schema(
+        summary="Retrieve Initiation Phase Sidebar Data",
+        description=(
+            "Fetches all structured data (Stability Score, Feasibility, Keywords, Scope, Reflection) "
+            "required to render the Sidebar UI during the INITIATION phase."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the workflow session.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        responses={
+            200: RefinedTopicSerializer,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        }
+    )
+    async def get(self, request, session_id):
+        """
+        Retrieves InitiationPhaseData and related topic components for the sidebar.
+        """
 
-        # Retrieve the current Workflow State
         try:
-            workflow_state = await get_or_create_workflow_state(user)
-        except WorkflowState.DoesNotExist:
+            initiation_instance = await get_refined_topic_instance(session_id)
+        except InitiationPhaseData.DoesNotExist:
             return Response(
-                {"error": "Workflow state not found. Please start a search first."},
+                {"detail": f"Initiation data not found for session {session_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Check Precondition
-        # Dichotomies should only be suggested once the data is locked and step is 'SCOPE'
-        if workflow_state.current_step not in ['SCOPE', 'COLLECTION']:
-            return Response(
-                {"error": f"Dichotomy suggestion is only available in the 'SCOPE' step. Current step: {workflow_state.current_step}."},
-                status=status.HTTP_400_BAD_REQUEST
+        serializer = RefinedTopicSerializer(initiation_instance)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class WorkflowChatInputView(APIView):
+    """
+    Handles POST requests for chat input within a specific workflow session.
+    Routes the input to the corresponding agent handler based on current_stage.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Submit Chat Input for Workflow Session",
+        description=(
+            "Accepts user chat input for a specific workflow session identified by session_id. "
+            "Validates the workflow state and routes the input to the appropriate agent handler based on the current stage."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the workflow session.",
+                required=True,
+                type=OpenApiTypes.UUID,
             )
+        ],
+        request=WorkflowChatInputRequestSerializer,
+        responses={
+            202: WorkflowChatInputResponseSerializer,
+            400: OpenApiTypes.OBJECT,
+            403: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+            409: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        },
+        examples=[
+            OpenApiExample(
+                'Successful Submission',
+                value={"status": "processing", "message": "Chat input request submitted. Please await the real-time response."},
+                response_only=True,
+                status_codes=['202']
+            ),
+            OpenApiExample(
+                'Missing user_message',
+                value={"error": "user_message is required."},
+                response_only=True,
+                status_codes=['400']
+            ),
+        ]
+    )
+    async def post(self, request, session_id):
+        user_message = request.data.get('user_message')
+        ea_agent_role_name = request.data.get('ea_agent_role_name', 'ExplorerAgent')
+        if not user_message:
+            return Response({"error": "user_message is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check Cache (The primary read operation)
-        if workflow_state.suggested_dichotomies_cache:
-            # Data is already computed and cached. Return it immediately.
-            suggestions = workflow_state.suggested_dichotomies_cache
-            serializer = DichotomySuggestionSerializer(suggestions, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+        user = request.user
 
-        # Cache Miss: Trigger Asynchronous Computation
-
-        # We need the source text to pass to the agent, but we must handle the case
-        # where KnowledgeSource records are not present (which should be caught
-        # by the DataLock API, but is a safe check here).
+        # State Locking and Initial Check (Ensure Atomicity)
         try:
-            # Fetch all snippets from the locked knowledge sources
-            knowledge_sources_qs = KnowledgeSource.objects.filter(workflow_state=workflow_state)
-            knowledge_sources_text = "\n\n---\n\n".join(
-                [ks async for ks in knowledge_sources_qs.values_list('snippet', flat=True)]
+            # Atomic read and lock (runs in a sync thread via @sync_to_async)
+            workflow_state, phase_data = await atomic_read_and_lock_initiation_data(
+                session_id=session_id,
+                user_id=user.id
             )
+        except ResearchWorkflowState.DoesNotExist:
+            return Response({"error": "Workflow session not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
+        except PermissionError as e:
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
         except Exception as e:
-            logging.error("Failed to fetch knowledge sources for workflow state %s: %s", workflow_state.pk, str(e))
-            return Response(
-                {"error": "Failed to retrieve required knowledge base data."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            logger.error(f"DB lock or retrieval error: {e}")
+            return Response({"error": "Database access error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        if not knowledge_sources_text.strip():
-            return Response(
-                {"error": "No locked knowledge sources found to generate suggestions from."},
-                status=status.HTTP_400_BAD_REQUEST
+        if workflow_state.current_stage != KuhlthauStage.INITIATION:
+            error_msg = (
+                f"Operation not allowed. Current stage is '{workflow_state.current_stage}', "
+                f"expected '{KuhlthauStage.INITIATION}' for this chat endpoint."
             )
+            return Response({"error": error_msg}, status=status.HTTP_409_CONFLICT)
 
         event_payload = {
-            "workflow_state_id": workflow_state.pk,
+            "session_id": str(session_id),
             "user_id": user.id,
-            "agent_role_name": "DichotomysSuggester",
-            "input_data": knowledge_sources_text
+            "user_message": user_message,
+            "ea_agent_role_name": ea_agent_role_name,
+            "final_question_draft": phase_data.final_research_question,
+            "locked_keywords_list": await get_serialized_data({'initiation_data_id': session_id, 'status': 'LOCKED'}, TopicKeyword, TopicKeywordSerializer, many=True),
+            "locked_scope_elements_list": await get_serialized_data({'initiation_data_id': session_id, 'status': 'LOCKED'}, TopicScopeElement, TopicScopeElementSerializer, many=True),
+            "discarded_elements_list": [],
+            "conversation_summary_of_old_history": phase_data.conversation_summary,
+            "latest_reflection_entry": phase_data.latest_reflection_entry.entry_text if phase_data.latest_reflection_entry is not None else '',
+            'last_analysis_sequence_number': phase_data.last_analysis_sequence_number,
+            "current_chat_history": await get_serialized_data({'workflow_state_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
         }
 
         publish_event.delay(
-            event_type=DICHOTOMY_SUGGESTION_REQUESTED,
-            payload=event_payload
+            event_type=InitiationEAStreamRequest.name,
+            payload=event_payload,
+            queue=InitiationEAStreamRequest.queue
         )
-        logging.info("Published %s event for workflow ID: %s", DICHOTOMY_SUGGESTION_REQUESTED, workflow_state.pk)
 
-        # 3. Return Processing Status
+        logger.info("Published %s event for session ID: %s", InitiationEAStreamRequest.name, session_id)
+
         return Response(
-            {"status": "processing", "message": "AI generation request submitted. Please wait for the real-time update."},
+            {"status": "processing", "message": "Chat input request submitted. Please await the real-time response."},
             status=status.HTTP_202_ACCEPTED
         )
-
-
-class WorkflowStateView(APIView):
-    """
-    Retrieves the current workflow state for the authenticated user.
-    If no state exists, returns the default initial state.
-    """
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        user = request.user
-
-        try:
-            # 1. Attempt to retrieve the existing state for the user
-            workflow_state = WorkflowState.objects.get(user=user)
-
-            # 2. Serialize and return the saved state
-            serializer = WorkflowStateSerializer(workflow_state)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        except WorkflowState.DoesNotExist:
-            # 3. If no state exists, return the default initial state structure
-
-            # Create a temporary, unsaved default instance
-            # default_state = WorkflowState(user=user)
-            default_state = WorkflowState(user=user)
-
-            # Serialize the default instance to get the desired JSON structure
-            # (current_step='SEARCH', all data fields empty/default dicts)
-            serializer = WorkflowStateSerializer(default_state)
-
-            # We return the data but use HTTP 200 OK since this is expected behavior
-            return Response(serializer.data, status=status.HTTP_200_OK)

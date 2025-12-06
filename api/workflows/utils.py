@@ -1,12 +1,13 @@
-import logging
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from asgiref.sync import sync_to_async
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.db import transaction
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
-from .models import KnowledgeSource, WorkflowState
+from .models import InitiationPhaseData, ResearchWorkflowState
 
 if TYPE_CHECKING:
     from users.models import User
@@ -15,121 +16,107 @@ else:
 
 
 @sync_to_async
-def get_and_persist_cached_results(user: "User", cache_key: str) -> bool:
+def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tuple[ResearchWorkflowState, InitiationPhaseData]:
     """
-    Retrieves transient search data from the cache, saves it to the database,
-    atomically updates the WorkflowState to 'SCOPE', and clears the cache.
-
-    Args:
-        user: The authenticated Django User instance.
-        cache_key: The unique key used to retrieve the data from the cache.
-
-    Returns:
-        True if data was found, persisted, and the step updated; False otherwise.
+    Executes a single atomic transaction to lock the state and load the initiation data.
+    This is the function called by the WorkflowChatInputView.
     """
-    # Retrieve Data from Cache
-    cached_data = cache.get(cache_key)
 
-    if not cached_data or not cached_data.get('results'):
-        # If cache is empty or results are missing, return False (signals HTTP 400 to view)
-        return False
+    # Ensures the entire sequence is locked and atomic
+    with transaction.atomic():
+        # Retrieve and LOCK the main state
+        # Note: Must use select_for_update() for locking
+        workflow_state = get_object_or_404(
+            ResearchWorkflowState.objects.select_for_update(),
+            session_id=session_id,
+            user_id=user_id
+        )
 
-    search_query = cached_data.get('query', 'N/A')
-    search_results = cached_data.get('results', [])
+        # Retrieve or Create and LOCK the phase data
+        # We need to get or create the InitiationPhaseData instance.
+        # Since it is a OneToOne relationship, the lock on the parent often suffices,
+        # but select_for_update() is safer if the instance exists.
 
-    try:
-        with transaction.atomic():
-            # 2. Retrieve the WorkflowState (must exist due to prior checks in the view)
-            state = WorkflowState.objects.get(user=user)
+        # We call the synchronous helper function *within* the atomic block
+        initiation_data = get_or_create_initiation_data(workflow_state)
 
-            # --- Persistence Actions ---
+        # Manually lock the data instance if necessary (complex locking is usually done via raw query or dedicated manager)
+        # initiation_data = InitiationPhaseData.objects.select_for_update().get(workflow_state=workflow_state)
 
-            # 3. Update WorkflowState with the final query and transition step
-            state.current_step = 'SCOPE'
-            state.save()
-
-            # 4. Clean up any previous knowledge sources associated with this state
-            # This is crucial if a user re-locks data after stepping back or changing their mind.
-            KnowledgeSource.objects.filter(workflow_state=state).delete()
-
-            # 5. Prepare and Bulk Create KnowledgeSource records
-            sources_to_create = [
-                KnowledgeSource(
-                    workflow_state=state,
-                    query=search_query,
-                    title=result.get('title', ''),
-                    snippet=result.get('snippet', ''),
-                    url=result.get('url', ''),
-                    source=result.get('source', ''),
-                    # locked_at will be set automatically by auto_now_add
-                ) for result in search_results
-            ]
-
-            if sources_to_create:
-                KnowledgeSource.objects.bulk_create(sources_to_create)
-
-        # 6. Cleanup cache (only if the atomic transaction was successful)
-        cache.delete(cache_key)
-
-        return True
-
-    except WorkflowState.DoesNotExist:
-        # This error should be rare due to prior 'get_or_create' in the view,
-        # but handled here for safety.
-        return False
-    except Exception as e:
-        # The transaction block automatically handles rollback upon any exception.
-        logging.error(f"Error persisting cached data for user {user.pk}: {e}")
-        # Re-raise the exception to allow the calling view to handle the HTTP 500 response.
-        raise e
+        return workflow_state, initiation_data
 
 @sync_to_async
-def get_or_create_workflow_state(user: "User") -> WorkflowState:
+def get_refined_topic_instance(session_id: UUID):
+    initiation_instance = InitiationPhaseData.objects.select_related(
+        'workflow_state',
+        'latest_reflection_entry'
+    ).prefetch_related(
+        'keywords_list',
+        'scope_elements_list'
+    ).get(
+        workflow_state__session_id=session_id
+    )
+
+    return initiation_instance
+
+@sync_to_async
+def create_workflow_state(session_id: UUID, user_id: int, initial_stage: str) -> ResearchWorkflowState:
     """
-    Retrieves the existing WorkflowState for a user or creates a new one
-    if it does not exist.
+    Creates a new ResearchWorkflowState instance.
     """
-    # Note: Using get_or_create is safer than separate try/except blocks
-    state, created = WorkflowState.objects.get_or_create(
-        user=user,
+    return ResearchWorkflowState.objects.create(
+        session_id=session_id,
+        user_id=user_id,
+        current_stage=initial_stage
+    )
+
+def determine_feasibility_status(score: int, is_niche: bool) -> str:
+    """Helper function to determine the final Feasibility Status based on Agent output and rules."""
+    if is_niche or score < 4:
+        return 'LOW'
+    if score >= 8:
+        return 'HIGH'
+    return 'MEDIUM'
+
+def get_resource_suggestion(feasibility_status: str) -> str:
+    if feasibility_status == 'HIGH':
+        return "Focus your next search using specialized academic databases (e.g., Scopus, Web of Science) targeting the specific geographical and time scope."
+    elif feasibility_status == 'MEDIUM':
+        return "Use a combination of general search engines and credible institutional reports (e.g., OECD, World Bank) to solidify your topic."
+    elif feasibility_status == 'LOW':
+        return "The topic is highly niche or information-scarce. Start with broad keyword searches and general encyclopedias to establish foundational context before narrowing down."
+    return "Please define your topic further to get a resource suggestion."
+
+@sync_to_async
+def get_workflow_state(session_id: UUID, user_id: int) -> ResearchWorkflowState:
+    """
+    Retrieves an existing ResearchWorkflowState instance.
+    If not found, it raises a DoesNotExist exception (for 404 handling in the View).
+    """
+    # Note: Use get_object_or_404 in the View or handle the DoesNotExist here.
+    return ResearchWorkflowState.objects.get(
+        session_id=session_id,
+        user_id=user_id
+    )
+
+def get_or_create_initiation_data(workflow_state: ResearchWorkflowState) -> InitiationPhaseData:
+    """
+    Retrieves or creates the InitiationPhaseData linked to the workflow state.
+    Handles phase-specific default value initialization.
+
+    NOTE: Don't be decorate this function with @sync_to_async.
+    This function is used by atomic_read_and_lock_initiation_data and is
+    intended to be called within an atomic transaction.
+    """
+    # Using get_or_create to safely handle the OneToOne relationship
+    initiation_data, created = InitiationPhaseData.objects.get_or_create(
+        workflow_state=workflow_state,
         defaults={
-            # Set initial defaults if a new state is created
-            'current_step': 'SEARCH',
-            'scope_data': {},
-            'analysis_data': {},
+            'stability_score': 0.0,
+            'final_research_question': '',
+            'feasibility_status': 'LOW',
+            'conversation_summary': '',
+            'last_analysis_sequence_number': 0
         }
     )
-    return state
-
-@sync_to_async
-def update_workflow_state(user: "User", **kwargs) -> WorkflowState:
-    """
-    Updates specific fields of the user's existing WorkflowState.
-    Requires the state to already exist.
-
-    Args:
-        user: The Django User instance.
-        **kwargs: Fields to update (e.g., current_step='SCOPE', scope_data={...}).
-
-    Raises:
-        WorkflowState.DoesNotExist: If the state record is missing.
-    """
-    # 1. Retrieve the state (or use get_or_create if you want to handle missing states)
-    try:
-        state = WorkflowState.objects.get(user=user)
-    except WorkflowState.DoesNotExist:
-        # For updates, we usually want to raise an error if the state is missing.
-        raise
-
-    # 2. Update all provided fields
-    for field, value in kwargs.items():
-        if hasattr(state, field):
-            setattr(state, field, value)
-        else:
-            # Optional: Log a warning if an invalid field is passed
-            logging.warning(f"Warning: WorkflowState model has no field named '{field}'")
-
-    # 3. Save the changes
-    state.save()
-
-    return state
+    return initiation_data
