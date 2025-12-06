@@ -39,7 +39,12 @@ def update_topic_stability_data(event_type: str, payload: dict):
     try:
         # Fetch the InitiationPhaseData instance linked to the session
         # NOTE: This requires fetching ResearchWorkflowState first to get the PK link
-        initiation_data = InitiationPhaseData.objects.select_related('workflow_state').get(
+        initiation_data = InitiationPhaseData.objects.select_related(
+            'workflow_state'
+        ).prefetch_related(
+            'keywords_list',
+            'scope_elements_list'
+        ).get(
             workflow_state__session_id=session_id
         )
     except InitiationPhaseData.DoesNotExist:
@@ -49,15 +54,34 @@ def update_topic_stability_data(event_type: str, payload: dict):
     logger.info("Task %s: Persisting TR Agent data for session %s. Score: %s",
                 task_id, session_id, payload.get('new_stability_score'))
 
-    initiation_data.stability_score = payload.get('new_stability_score', initiation_data.stability_score)
-    initiation_data.final_research_question = payload.get('current_research_question', initiation_data.final_research_question)
+    new_stability_score = payload.get('new_stability_score')
+    if not new_stability_score or new_stability_score is None:
+        new_stability_score = initiation_data.stability_score
+
+    current_research_question = payload.get('current_research_question')
+    if not current_research_question or current_research_question is None:
+        current_research_question = initiation_data.final_research_question
+
+    is_niche = payload.get('is_topic_too_niche')
+    if not is_niche or is_niche is None:
+        is_niche = False
+
+    updated_summary = payload.get('updated_summary')
+    if not updated_summary or updated_summary is None:
+        updated_summary = initiation_data.conversation_summary
+
+    last_chat_sequence_number = payload.get('last_chat_sequence_number')
+    if not last_chat_sequence_number or last_chat_sequence_number is None:
+        last_chat_sequence_number = initiation_data.last_analysis_sequence_number
+
+    initiation_data.stability_score = new_stability_score
+    initiation_data.final_research_question = current_research_question
 
     # NOTE: Feasibility Status is calculated by the backend *after* the score and structural analysis.
     # We assume a separate function determines the final feasibility_status based on stability_score and is_topic_too_niche.
-    is_niche = payload.get('is_topic_too_niche', False)
     initiation_data.feasibility_status = determine_feasibility_status(initiation_data.stability_score, is_niche)
-    initiation_data.conversation_summary = payload.get('updated_summary', initiation_data.conversation_summary)
-    initiation_data.last_analysis_sequence_number = payload.get('last_chat_sequence_number', initiation_data.last_analysis_sequence_number)
+    initiation_data.conversation_summary = updated_summary
+    initiation_data.last_analysis_sequence_number = last_chat_sequence_number
 
     # initiation_data.agent_evaluation_count += 1 # Increment evaluation count
     initiation_data.save(update_fields=[
@@ -65,7 +89,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
         'final_research_question',
         'feasibility_status',
         'conversation_summary',
-        'last_chat_sequence_number',
+        'last_analysis_sequence_number',
         'updated_at'])
 
     refined_keywords = payload.get('refined_keywords_to_lock', [])
@@ -95,8 +119,8 @@ def update_topic_stability_data(event_type: str, payload: dict):
             'stability_score': initiation_data.stability_score,
             'feasibility_status': initiation_data.feasibility_status,
             'final_research_question': initiation_data.conversation_summary,
-            'keywords': TopicKeywordSerializer(refined_keywords_instance).data,
-            'scope':TopicScopeElementSerializer(refined_scope_elements_instance).data,
+            'keywords': TopicKeywordSerializer(refined_keywords_instance, many=True).data,
+            'scope':TopicScopeElementSerializer(refined_scope_elements_instance, many=True).data,
             'resource_suggestion': get_resource_suggestion(initiation_data.feasibility_status)
         }
     )
