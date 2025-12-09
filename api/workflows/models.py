@@ -11,17 +11,16 @@ User = get_user_model()
 
 class KuhlthauStage(models.TextChoices):
     # [DB Value] = [Constant Name], [Human Readable Label]
-    INITIATION = 'INITIATION', '1. Initiation (Uncertainty)'
-    SELECTION = 'SELECTION', '2. Selection (Optimism)'
-    EXPLORATION = 'EXPLORATION', '3. Exploration (Confusion/Doubt)'
-    FORMULATION = 'FORMULATION', '4. Formulation (Clarity)'
-    COLLECTION = 'COLLECTION', '5. Collection (Satisfaction)'
-    PRESENTATION = 'PRESENTATION', '6. Presentation (Closure)'
+    TOPIC_DEFINITION_LOCKIN = 'INITIATION', '1. Topic Definition & Lock-in (Uncertainty → Optimism)'
+    EXPLORATION = 'EXPLORATION', '2. Exploration (Confusion/Doubt)'
+    FORMULATION = 'FORMULATION', '3. Formulation (Clarity)'
+    COLLECTION = 'COLLECTION', '4. Collection (Satisfaction)'
+    PRESENTATION = 'PRESENTATION', '5. Presentation (Closure)'
 
     # 額外定義一個方便的屬性，例如用於狀態判斷
     @classmethod
     def get_emotional_state(cls, stage):
-        if stage == cls.INITIATION:
+        if stage == cls.TOPIC_DEFINITION_LOCKIN:
             return 'Uncertainty'
         return 'N/A'
 
@@ -34,12 +33,22 @@ class ResearchWorkflowState(models.Model):
 
     # Define choices for the Kuhlthau ISP stages
     KUHLTHAU_STAGES = (
-        ('INITIATION', '1. Initiation (Uncertainty)'),
-        ('SELECTION', '2. Selection (Optimism)'),
-        ('EXPLORATION', '3. Exploration (Confusion/Doubt)'),
-        ('FORMULATION', '4. Formulation (Clarity)'),
-        ('COLLECTION', '5. Collection (Satisfaction)'),
-        ('PRESENTATION', '6. Presentation (Closure)'),
+        # Merges original INITIATION (1) and SELECTION (2).
+        # This phase handles the entire process from vague concept to locked research question,
+        # guided by the Stability Score.
+        ('TOPIC_DEFINITION_LOCKIN', '1. Topic Definition & Lock-in (Uncertainty → Optimism)'),
+
+        # Corresponds to original ISP stage 3. Focus on sifting information and evaluation.
+        ('EXPLORATION', '2. Exploration (Confusion/Doubt)'),
+
+        # Corresponds to original ISP stage 4. Focus on synthesizing information into arguments.
+        ('FORMULATION', '3. Formulation (Clarity)'),
+
+        # Corresponds to original ISP stage 5. Focus on precise evidence gathering.
+        ('COLLECTION', '4. Collection (Confidence)'),
+
+        # Corresponds to original ISP stage 6. Focus on finalizing and outputting the report.
+        ('PRESENTATION', '5. Presentation (Satisfaction/Closure)'),
     )
 
     # --- Identification Fields ---    # --- Identification & Linkage Fields ---
@@ -58,7 +67,7 @@ class ResearchWorkflowState(models.Model):
     current_stage = models.CharField(
         max_length=50,
         choices=KuhlthauStage.choices,
-        default=KuhlthauStage.INITIATION,
+        default=KuhlthauStage.TOPIC_DEFINITION_LOCKIN,
         help_text="Current Kuhlthau phase (INITIATION, SELECTION, etc.)."
     )
 
