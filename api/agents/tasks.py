@@ -58,12 +58,15 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
 
     logger.info("Task %s: Starting TR Agent execution for session %s.", task_id, session_id)
 
-    tr_agent_output_json = get_agent_response(
-        AgentRoleConfig,
-        tr_agent_role_name,
-        rendered_data=tr_agent_input_data,
-        output_format='json'
-    )
+    try:
+        tr_agent_output_json = get_agent_response(
+            AgentRoleConfig,
+            tr_agent_role_name,
+            rendered_data=tr_agent_input_data,
+            output_format='json'
+        )
+    except Exception:
+        cache.delete(lock_key)
 
     logger.info("Task %s: Starting SUM Agent execution for session %s.", task_id, session_id)
 
@@ -77,12 +80,16 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
             'locked_scope_elements_list': payload.get('locked_scope_elements_list'),
         }
     }
-    sum_agent_output_json = get_agent_response(
-        AgentRoleConfig,
-        sum_agent_role_name,
-        rendered_data=rendered_data,
-        output_format='json'
-    )
+
+    try:
+        sum_agent_output_json = get_agent_response(
+            AgentRoleConfig,
+            sum_agent_role_name,
+            rendered_data=rendered_data,
+            output_format='json'
+        )
+    except Exception:
+        cache.delete(lock_key)
 
     current_research_question = tr_agent_output_json.get('current_research_question')
     topic_stability_updated_payload = {
@@ -207,6 +214,13 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
     else:
         recent_turns_of_chat_history = current_chat_history[-7:]
 
+    recent_turns_of_chat_history = [
+        {
+            'name': msg.get('name', ''),
+            'content': msg.get('content', '')
+        }
+        for msg in recent_turns_of_chat_history
+    ]
     tr_agent_request_payload = {
         'session_id': session_id,
         'tr_agent_role_name': 'ResearchTopicRefinementAgent',
