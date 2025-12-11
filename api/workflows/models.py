@@ -327,6 +327,12 @@ class TopicKeyword(models.Model):
         indexes = [
             models.Index(fields=['initiation_data', 'status']),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['initiation_data', 'text'],
+                name='unique_keyword_per_session'
+            )
+        ]
 
     def __str__(self):
         return f"[{self.status}] {self.text} for Session {self.initiation_data.workflow_state.session_id}"
@@ -383,6 +389,12 @@ class TopicScopeElement(models.Model):
         verbose_name_plural = "Topic Scope Elements"
         indexes = [
             models.Index(fields=['initiation_data', 'label', 'status']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['initiation_data', 'label', 'value'],
+                name='unique_scope_element_per_session'
+            )
         ]
 
     def __str__(self):
