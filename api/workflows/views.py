@@ -1,6 +1,7 @@
 import logging
 
 from adrf.views import APIView
+from asgiref.sync import sync_to_async
 from core.utils import get_serialized_data
 from django.contrib.auth import get_user_model
 from drf_spectacular.types import OpenApiTypes
@@ -16,11 +17,12 @@ from .models import (ChatHistoryEntry, InitiationPhaseData, KuhlthauStage,
                      ResearchWorkflowState, TopicKeyword, TopicScopeElement)
 from .serializers import (ChatEntryHistorySerializer, RefinedTopicSerializer,
                           TopicKeywordSerializer, TopicScopeElementSerializer,
-                          UserReflectionLogSerializer,
                           WorkflowChatInputRequestSerializer,
                           WorkflowChatInputResponseSerializer)
 from .utils import (atomic_read_and_lock_initiation_data,
-                    get_refined_topic_instance, get_topic_keyword)
+                    create_topic_keyword_by_session,
+                    get_refined_topic_instance, get_topic_keyword_by_session,
+                    update_topic_keyword_by_id)
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -110,7 +112,7 @@ class RefinedTopicView(APIView):
         """
 
         try:
-            initiation_instance = await get_refined_topic_instance(session_id)
+            initiation_instance = await sync_to_async(get_refined_topic_instance)(session_id)
         except InitiationPhaseData.DoesNotExist:
             return Response(
                 {"detail": f"Initiation data not found for session {session_id}."},
@@ -147,7 +149,7 @@ class SessionTopicKeywordView(APIView):
     )
     async def get(self, request, session_id):
         try:
-            instances = await get_topic_keyword(session_id)
+            instances = get_topic_keyword_by_session(session_id)
         except TopicKeyword.DoesNotExist:
             return Response({"detail": f"Topic keywords not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -177,29 +179,27 @@ class SessionTopicKeywordView(APIView):
         }
     )
     async def post(self, request, session_id):
-        try:
-            initial_data = await get_refined_topic_instance(session_id)
-        except InitiationPhaseData.DoesNotExist:
-            return Response(
-                {"detail": f"Initiation data not found for session {session_id}."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
         keyword_text = request.data.get('keyword_text')
+        keyword_status = request.data.get('status', None)
         if not keyword_text:
             return Response(
                 {"detail": "keyword_text is required."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        new_keyword = TopicKeyword.objects.create(
-            initiation_data=initial_data,
-            text=keyword_text,
-            status='USER_DRAFT'
-        )
-        new_keyword.save()
+        try:
+            instances = await sync_to_async(create_topic_keyword_by_session)(session_id, keyword_text, keyword_status)
+        except InitiationPhaseData.DoesNotExist:
+            return Response(
+                {"detail": f"Initiation data not found for session {session_id}."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except TopicKeyword.DoesNotExist:
+            return Response(
+                {"detail": f"Failed to create keyword for session {session_id}."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-        instances = TopicKeyword.objects.filter(initial_data=initial_data).all()
         serializer = TopicKeywordSerializer(instances, many=True)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -231,7 +231,7 @@ class TopicKeywordView(APIView):
     )
     async def put(self, request, keyword_id):
         keyword_text = request.data.get('keyword_text')
-        keyword_status = request.data.get('status')
+        keyword_status = request.data.get('status', None)
         if not keyword_text:
             return Response(
                 {"detail": "keyword_text is required."},
@@ -239,22 +239,13 @@ class TopicKeywordView(APIView):
             )
 
         try:
-            keyword_instance = TopicKeyword.objects.select_related(
-                'initiation_data'
-            ).get(
-                id=keyword_id
-            )
+            instances = await sync_to_async(update_topic_keyword_by_id)(keyword_id, keyword_text, keyword_status)
         except TopicKeyword.DoesNotExist:
             return Response(
                 {"detail": f"Keyword '{keyword_id}' not found."},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        keyword_instance.text = keyword_text
-        keyword_instance.status = keyword_status
-        keyword_instance.save()
-
-        instances = TopicKeyword.objects.filter(initiation_data=keyword_instance.initiation_data).all()
         serializer = TopicKeywordSerializer(instances, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -317,7 +308,7 @@ class WorkflowChatInputView(APIView):
         # State Locking and Initial Check (Ensure Atomicity)
         try:
             # Atomic read and lock (runs in a sync thread via @sync_to_async)
-            workflow_state, phase_data = await atomic_read_and_lock_initiation_data(
+            workflow_state, phase_data = await sync_to_async(atomic_read_and_lock_initiation_data)(
                 session_id=session_id,
                 user_id=user.id
             )

@@ -15,7 +15,6 @@ else:
     User = get_user_model()
 
 
-@sync_to_async
 def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tuple[ResearchWorkflowState, InitiationPhaseData]:
     """
     Executes a single atomic transaction to lock the state and load the initiation data.
@@ -45,7 +44,6 @@ def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tupl
 
         return workflow_state, initiation_data
 
-@sync_to_async
 def get_refined_topic_instance(session_id: UUID):
     initiation_instance = InitiationPhaseData.objects.select_related(
         'workflow_state',
@@ -59,7 +57,6 @@ def get_refined_topic_instance(session_id: UUID):
 
     return initiation_instance
 
-@sync_to_async
 def create_workflow_state(session_id: UUID, user_id: int, initial_stage: str) -> ResearchWorkflowState:
     """
     Creates a new ResearchWorkflowState instance.
@@ -87,11 +84,38 @@ def get_resource_suggestion(feasibility_status: str) -> str:
         return "The topic is highly niche or information-scarce. Start with broad keyword searches and general encyclopedias to establish foundational context before narrowing down."
     return "Please define your topic further to get a resource suggestion."
 
-@sync_to_async
-def get_topic_keyword(session_id: UUID) -> QuerySet[TopicKeyword]:
+def create_topic_keyword_by_session(session_id: UUID, keyword_text: str, keyword_status: str | None = None) -> QuerySet[TopicKeyword]:
+    initial_data = get_refined_topic_instance(session_id)
+    new_keyword = TopicKeyword.objects.create(
+        initiation_data=initial_data,
+        text=keyword_text,
+        status='USER_DRAFT'
+    )
+    if keyword_status is not None:
+        new_keyword.status = keyword_status
+
+    new_keyword.save()
+    return TopicKeyword.objects.filter(initial_data=initial_data).all()
+
+
+def get_topic_keyword_by_session(session_id: UUID) -> QuerySet[TopicKeyword]:
     return TopicKeyword.objects.filter(initiation_data_id=session_id).all()
 
-@sync_to_async
+def update_topic_keyword_by_id(keyword_id: UUID, keyword_text: str, keyword_status: str | None = None) -> QuerySet[TopicKeyword]:
+    keyword_instance = TopicKeyword.objects.select_related(
+        'initiation_data'
+    ).get(
+        id=keyword_id
+    )
+
+    keyword_instance.text = keyword_text
+    if keyword_status is not None:
+        keyword_instance.status = keyword_status
+
+    keyword_instance.save()
+
+    return TopicKeyword.objects.filter(initiation_data=keyword_instance.initiation_data).all()
+
 def get_workflow_state(session_id: UUID, user_id: int) -> ResearchWorkflowState:
     """
     Retrieves an existing ResearchWorkflowState instance.
