@@ -1,19 +1,18 @@
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from asgiref.sync import sync_to_async
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404
 
 from .models import InitiationPhaseData, ResearchWorkflowState, TopicKeyword
+from .serializers import TopicKeywordSerializer
 
 if TYPE_CHECKING:
     from users.models import User
 else:
     User = get_user_model()
-
 
 def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tuple[ResearchWorkflowState, InitiationPhaseData]:
     """
@@ -75,16 +74,7 @@ def determine_feasibility_status(score: int, is_niche: bool) -> str:
         return 'HIGH'
     return 'MEDIUM'
 
-def get_resource_suggestion(feasibility_status: str) -> str:
-    if feasibility_status == 'HIGH':
-        return "Focus your next search using specialized academic databases (e.g., Scopus, Web of Science) targeting the specific geographical and time scope."
-    elif feasibility_status == 'MEDIUM':
-        return "Use a combination of general search engines and credible institutional reports (e.g., OECD, World Bank) to solidify your topic."
-    elif feasibility_status == 'LOW':
-        return "The topic is highly niche or information-scarce. Start with broad keyword searches and general encyclopedias to establish foundational context before narrowing down."
-    return "Please define your topic further to get a resource suggestion."
-
-def create_topic_keyword_by_session(session_id: UUID, keyword_text: str, keyword_status: str | None = None) -> QuerySet[TopicKeyword]:
+def create_topic_keyword_by_session(session_id: UUID, keyword_text: str, keyword_status: str | None = None):
     initial_data = get_refined_topic_instance(session_id)
     new_keyword = TopicKeyword.objects.create(
         initiation_data=initial_data,
@@ -95,13 +85,16 @@ def create_topic_keyword_by_session(session_id: UUID, keyword_text: str, keyword
         new_keyword.status = keyword_status
 
     new_keyword.save()
-    return TopicKeyword.objects.filter(initial_data=initial_data).all()
+    instances = TopicKeyword.objects.filter(initial_data=initial_data).all()
+    serializer = TopicKeywordSerializer(instances, many=True)
+    return serializer.data
 
+def get_topic_keyword_by_session(session_id: UUID):
+    instances = TopicKeyword.objects.filter(initiation_data_id=session_id).all()
+    serializer = TopicKeywordSerializer(instances, many=True)
+    return serializer.data
 
-def get_topic_keyword_by_session(session_id: UUID) -> QuerySet[TopicKeyword]:
-    return TopicKeyword.objects.filter(initiation_data_id=session_id).all()
-
-def update_topic_keyword_by_id(keyword_id: UUID, keyword_text: str, keyword_status: str | None = None) -> QuerySet[TopicKeyword]:
+def update_topic_keyword_by_id(keyword_id: UUID, keyword_text: str, keyword_status: str | None = None):
     keyword_instance = TopicKeyword.objects.select_related(
         'initiation_data'
     ).get(
@@ -114,7 +107,9 @@ def update_topic_keyword_by_id(keyword_id: UUID, keyword_text: str, keyword_stat
 
     keyword_instance.save()
 
-    return TopicKeyword.objects.filter(initiation_data=keyword_instance.initiation_data).all()
+    instances = TopicKeyword.objects.filter(initiation_data=keyword_instance.initiation_data).all()
+    serializer = TopicKeywordSerializer(instances, many=True)
+    return serializer.data
 
 def get_workflow_state(session_id: UUID, user_id: int) -> ResearchWorkflowState:
     """

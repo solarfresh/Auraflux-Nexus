@@ -149,12 +149,11 @@ class SessionTopicKeywordView(APIView):
     )
     async def get(self, request, session_id):
         try:
-            instances = get_topic_keyword_by_session(session_id)
+            data = get_topic_keyword_by_session(session_id)
         except TopicKeyword.DoesNotExist:
             return Response({"detail": f"Topic keywords not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = TopicKeywordSerializer(instances, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(data, status=status.HTTP_200_OK)
 
     @extend_schema(
         summary="Add a New Topic Keyword",
@@ -188,7 +187,7 @@ class SessionTopicKeywordView(APIView):
             )
 
         try:
-            instances = await sync_to_async(create_topic_keyword_by_session)(session_id, keyword_text, keyword_status)
+            data = await sync_to_async(create_topic_keyword_by_session)(session_id, keyword_text, keyword_status)
         except InitiationPhaseData.DoesNotExist:
             return Response(
                 {"detail": f"Initiation data not found for session {session_id}."},
@@ -200,8 +199,7 @@ class SessionTopicKeywordView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        serializer = TopicKeywordSerializer(instances, many=True)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(data, status=status.HTTP_201_CREATED)
 
 class TopicKeywordView(APIView):
 
@@ -239,15 +237,14 @@ class TopicKeywordView(APIView):
             )
 
         try:
-            instances = await sync_to_async(update_topic_keyword_by_id)(keyword_id, keyword_text, keyword_status)
+            data = await sync_to_async(update_topic_keyword_by_id)(keyword_id, keyword_text, keyword_status)
         except TopicKeyword.DoesNotExist:
             return Response(
                 {"detail": f"Keyword '{keyword_id}' not found."},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        serializer = TopicKeywordSerializer(instances, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class WorkflowChatInputView(APIView):
