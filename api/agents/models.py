@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 
 
@@ -6,6 +8,13 @@ class AgentRoleConfig(models.Model):
     Defines the specific role, behavior, and LLM parameters for an agent type
     (e.g., 'Dichotomy Suggester', 'Scope Summarizer').
     """
+    id = models.UUIDField(
+        primary_key=True,
+        editable=False,
+        default=uuid.uuid4,
+        help_text="Unique identifier for the agent role configuration."
+    )
+
     name = models.CharField(
         max_length=100,
         unique=True,

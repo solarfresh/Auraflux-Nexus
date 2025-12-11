@@ -160,6 +160,14 @@ class UserReflectionLog(models.Model):
     """
     Stores individual user reflection entries for tracking emotional/cognitive state.
     """
+
+    id = models.UUIDField(
+        primary_key=True,
+        editable=False,
+        default=uuid.uuid4,
+        help_text="Unique identifier for the reflection entry."
+    )
+
     session_id = models.CharField(max_length=255, db_index=True)
     entry_text = models.TextField(help_text="The user's self-reported reflection text.")
 
@@ -279,6 +287,13 @@ class TopicKeyword(models.Model):
         ('ON_HOLD', 'On Hold (Excluded from Current Topic)'),
     ]
 
+    id = models.UUIDField(
+        primary_key=True,
+        editable=False,
+        default=uuid.uuid4,
+        help_text="Unique identifier for the keyword entry."
+    )
+
     initiation_data = models.ForeignKey(
         'InitiationPhaseData',
         on_delete=models.CASCADE,
@@ -328,6 +343,13 @@ class TopicScopeElement(models.Model):
         ('AI_EXTRACTED', 'AI Extracted (Captured by Agent, Needs Review)'),
         ('ON_HOLD', 'On Hold (Excluded from Current Topic)'),
     ]
+
+    id = models.UUIDField(
+        primary_key=True,
+        editable=False,
+        default=uuid.uuid4,
+        help_text="Unique identifier for the scope element entry."
+    )
 
     initiation_data = models.ForeignKey(
         'InitiationPhaseData',

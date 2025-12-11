@@ -1,5 +1,7 @@
-from django.db import models
+import uuid
+
 from django.contrib.auth.models import AbstractUser
+from django.db import models
 
 
 class User(AbstractUser):
@@ -12,6 +14,13 @@ class User(AbstractUser):
     class Role(models.TextChoices):
         ADMIN = 'admin', 'Admin'
         USER = 'user', 'User'
+
+    id = models.UUIDField(
+        primary_key=True,
+        editable=False,
+        default=uuid.uuid4,
+        help_text="Unique identifier for the user."
+    )
 
     role = models.CharField(
         max_length=10,

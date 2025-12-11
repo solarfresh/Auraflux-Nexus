@@ -4,10 +4,10 @@ from uuid import UUID
 from asgiref.sync import sync_to_async
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 
-from .models import InitiationPhaseData, ResearchWorkflowState
+from .models import InitiationPhaseData, ResearchWorkflowState, TopicKeyword
 
 if TYPE_CHECKING:
     from users.models import User
@@ -86,6 +86,10 @@ def get_resource_suggestion(feasibility_status: str) -> str:
     elif feasibility_status == 'LOW':
         return "The topic is highly niche or information-scarce. Start with broad keyword searches and general encyclopedias to establish foundational context before narrowing down."
     return "Please define your topic further to get a resource suggestion."
+
+@sync_to_async
+def get_topic_keyword(session_id: UUID) -> QuerySet[TopicKeyword]:
+    return TopicKeyword.objects.filter(initiation_data_id=session_id).all()
 
 @sync_to_async
 def get_workflow_state(session_id: UUID, user_id: int) -> ResearchWorkflowState:

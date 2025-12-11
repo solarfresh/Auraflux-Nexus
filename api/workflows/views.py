@@ -20,7 +20,7 @@ from .serializers import (ChatEntryHistorySerializer, RefinedTopicSerializer,
                           WorkflowChatInputRequestSerializer,
                           WorkflowChatInputResponseSerializer)
 from .utils import (atomic_read_and_lock_initiation_data,
-                    get_refined_topic_instance)
+                    get_refined_topic_instance, get_topic_keyword)
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -121,6 +121,144 @@ class RefinedTopicView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+class SessionTopicKeywordView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Retrieve Topic Keywords for Workflow Session",
+        description=(
+            "Fetches the list of Topic Keywords associated with a specific workflow session identified by session_id."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the workflow session.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        responses={
+            200: TopicKeywordSerializer,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        }
+    )
+    async def get(self, request, session_id):
+        try:
+            instances = await get_topic_keyword(session_id)
+        except TopicKeyword.DoesNotExist:
+            return Response({"detail": f"Topic keywords not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = TopicKeywordSerializer(instances, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Add a New Topic Keyword",
+        description=(
+            "Adds a new Topic Keyword to the InitiationPhaseData associated with the specified workflow session."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the workflow session.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        request=TopicKeywordSerializer,
+        responses={
+            201: TopicKeywordSerializer,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        }
+    )
+    async def post(self, request, session_id):
+        try:
+            initial_data = await get_refined_topic_instance(session_id)
+        except InitiationPhaseData.DoesNotExist:
+            return Response(
+                {"detail": f"Initiation data not found for session {session_id}."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        keyword_text = request.data.get('keyword_text')
+        if not keyword_text:
+            return Response(
+                {"detail": "keyword_text is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        new_keyword = TopicKeyword.objects.create(
+            initiation_data=initial_data,
+            text=keyword_text,
+            status='USER_DRAFT'
+        )
+        new_keyword.save()
+
+        instances = TopicKeyword.objects.filter(initial_data=initial_data).all()
+        serializer = TopicKeywordSerializer(instances, many=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+class TopicKeywordView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Update an Existing Topic Keyword",
+        description=(
+            "Updates the text and status of an existing Topic Keyword identified by keyword_id."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="keyword_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the topic keyword.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        request=TopicKeywordSerializer,
+        responses={
+            200: TopicKeywordSerializer,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        }
+    )
+    async def put(self, request, keyword_id):
+        keyword_text = request.data.get('keyword_text')
+        keyword_status = request.data.get('status')
+        if not keyword_text:
+            return Response(
+                {"detail": "keyword_text is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            keyword_instance = TopicKeyword.objects.select_related(
+                'initiation_data'
+            ).get(
+                id=keyword_id
+            )
+        except TopicKeyword.DoesNotExist:
+            return Response(
+                {"detail": f"Keyword '{keyword_id}' not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        keyword_instance.text = keyword_text
+        keyword_instance.status = keyword_status
+        keyword_instance.save()
+
+        instances = TopicKeyword.objects.filter(initiation_data=keyword_instance.initiation_data).all()
+        serializer = TopicKeywordSerializer(instances, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 class WorkflowChatInputView(APIView):
     """
     Handles POST requests for chat input within a specific workflow session.
@@ -191,10 +329,10 @@ class WorkflowChatInputView(APIView):
             logger.error(f"DB lock or retrieval error: {e}")
             return Response({"error": "Database access error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        if workflow_state.current_stage != KuhlthauStage.INITIATION:
+        if workflow_state.current_stage != KuhlthauStage.TOPIC_DEFINITION_LOCKIN:
             error_msg = (
                 f"Operation not allowed. Current stage is '{workflow_state.current_stage}', "
-                f"expected '{KuhlthauStage.INITIATION}' for this chat endpoint."
+                f"expected '{KuhlthauStage.TOPIC_DEFINITION_LOCKIN}' for this chat endpoint."
             )
             return Response({"error": error_msg}, status=status.HTTP_409_CONFLICT)
 
