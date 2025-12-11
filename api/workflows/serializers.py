@@ -3,7 +3,6 @@ from rest_framework import serializers
 
 from .models import (ChatHistoryEntry, InitiationPhaseData, TopicKeyword,
                      TopicScopeElement, UserReflectionLog)
-from .utils import get_resource_suggestion
 
 
 class ChatEntryHistorySerializer(ModelSerializer):
@@ -16,7 +15,7 @@ class ChatEntryHistorySerializer(ModelSerializer):
         fields = ('id', 'role', 'content', 'name', 'sequence_number', 'timestamp')
 
 
-class TopicScopeElementSerializer(serializers.ModelSerializer):
+class TopicScopeElementSerializer(ModelSerializer):
     """
     Serializer for TopicScopeElement model.
     Used to represent individual scope components (label and value)
@@ -35,7 +34,7 @@ class TopicScopeElementSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'updated_at')
 
 
-class TopicKeywordSerializer(serializers.ModelSerializer):
+class TopicKeywordSerializer(ModelSerializer):
     """
     Serializer for TopicKeyword model.
     Used to represent individual keywords and their current status
@@ -110,8 +109,15 @@ class RefinedTopicSerializer(ModelSerializer):
         """
         Calculates and returns a resource search suggestion based on the feasibility status.
         """
-        status = obj.feasibility_status
-        return get_resource_suggestion(status)
+        feasibility_status = obj.feasibility_status
+
+        if feasibility_status == 'HIGH':
+            return "Focus your next search using specialized academic databases (e.g., Scopus, Web of Science) targeting the specific geographical and time scope."
+        elif feasibility_status == 'MEDIUM':
+            return "Use a combination of general search engines and credible institutional reports (e.g., OECD, World Bank) to solidify your topic."
+        elif feasibility_status == 'LOW':
+            return "The topic is highly niche or information-scarce. Start with broad keyword searches and general encyclopedias to establish foundational context before narrowing down."
+        return "Please define your topic further to get a resource suggestion."
 
 
 class UserReflectionLogSerializer(ModelSerializer):

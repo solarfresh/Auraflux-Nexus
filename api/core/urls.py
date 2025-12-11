@@ -1,12 +1,14 @@
 from django.contrib import admin
 from django.urls import path, include
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from workflows.urls import keyword_urlpatterns
 
 urlpatterns = [
     # path('admin/', admin.site.urls),
     path('api/search/', include('search.urls')),
     path('api/users/', include('users.urls')),
     path('api/workflows/', include('workflows.urls')),
+    path('api/keywords/', include(keyword_urlpatterns)),
 ]
 
 # Conditionally include Swagger UI only in development

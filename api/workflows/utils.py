@@ -1,21 +1,19 @@
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from asgiref.sync import sync_to_async
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 
-from .models import InitiationPhaseData, ResearchWorkflowState
+from .models import InitiationPhaseData, ResearchWorkflowState, TopicKeyword
+from .serializers import TopicKeywordSerializer
 
 if TYPE_CHECKING:
     from users.models import User
 else:
     User = get_user_model()
 
-
-@sync_to_async
 def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tuple[ResearchWorkflowState, InitiationPhaseData]:
     """
     Executes a single atomic transaction to lock the state and load the initiation data.
@@ -45,7 +43,6 @@ def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tupl
 
         return workflow_state, initiation_data
 
-@sync_to_async
 def get_refined_topic_instance(session_id: UUID):
     initiation_instance = InitiationPhaseData.objects.select_related(
         'workflow_state',
@@ -59,7 +56,6 @@ def get_refined_topic_instance(session_id: UUID):
 
     return initiation_instance
 
-@sync_to_async
 def create_workflow_state(session_id: UUID, user_id: int, initial_stage: str) -> ResearchWorkflowState:
     """
     Creates a new ResearchWorkflowState instance.
@@ -78,16 +74,43 @@ def determine_feasibility_status(score: int, is_niche: bool) -> str:
         return 'HIGH'
     return 'MEDIUM'
 
-def get_resource_suggestion(feasibility_status: str) -> str:
-    if feasibility_status == 'HIGH':
-        return "Focus your next search using specialized academic databases (e.g., Scopus, Web of Science) targeting the specific geographical and time scope."
-    elif feasibility_status == 'MEDIUM':
-        return "Use a combination of general search engines and credible institutional reports (e.g., OECD, World Bank) to solidify your topic."
-    elif feasibility_status == 'LOW':
-        return "The topic is highly niche or information-scarce. Start with broad keyword searches and general encyclopedias to establish foundational context before narrowing down."
-    return "Please define your topic further to get a resource suggestion."
+def create_topic_keyword_by_session(session_id: UUID, keyword_text: str, keyword_status: str | None = None):
+    initial_data = get_refined_topic_instance(session_id)
+    new_keyword = TopicKeyword.objects.create(
+        initiation_data=initial_data,
+        text=keyword_text,
+        status='USER_DRAFT'
+    )
+    if keyword_status is not None:
+        new_keyword.status = keyword_status
 
-@sync_to_async
+    new_keyword.save()
+    instances = TopicKeyword.objects.filter(initial_data=initial_data).all()
+    serializer = TopicKeywordSerializer(instances, many=True)
+    return serializer.data
+
+def get_topic_keyword_by_session(session_id: UUID):
+    instances = TopicKeyword.objects.filter(initiation_data_id=session_id).all()
+    serializer = TopicKeywordSerializer(instances, many=True)
+    return serializer.data
+
+def update_topic_keyword_by_id(keyword_id: UUID, keyword_text: str, keyword_status: str | None = None):
+    keyword_instance = TopicKeyword.objects.select_related(
+        'initiation_data'
+    ).get(
+        id=keyword_id
+    )
+
+    keyword_instance.text = keyword_text
+    if keyword_status is not None:
+        keyword_instance.status = keyword_status
+
+    keyword_instance.save()
+
+    instances = TopicKeyword.objects.filter(initiation_data=keyword_instance.initiation_data).all()
+    serializer = TopicKeywordSerializer(instances, many=True)
+    return serializer.data
+
 def get_workflow_state(session_id: UUID, user_id: int) -> ResearchWorkflowState:
     """
     Retrieves an existing ResearchWorkflowState instance.
