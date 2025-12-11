@@ -272,6 +272,13 @@ class TopicKeyword(models.Model):
     Stores individual keywords related to the topic for the Initiation Phase.
     """
 
+    KEYWORD_STATUS_CHOICES = [
+        ('LOCKED', 'Locked (Committed and Finalized)'),
+        ('USER_DRAFT', 'User Draft (Created by User, Pending Review)'),
+        ('AI_EXTRACTED', 'AI Extracted (Captured from Chat, Needs Review)'),
+        ('ON_HOLD', 'On Hold (Excluded from Current Topic)'),
+    ]
+
     initiation_data = models.ForeignKey(
         'InitiationPhaseData',
         on_delete=models.CASCADE,
@@ -286,8 +293,8 @@ class TopicKeyword(models.Model):
 
     status = models.CharField(
         max_length=20,
-        choices=[('LOCKED', 'Locked'), ('DRAFT', 'Draft'), ('DISCARDED', 'Discarded')],
-        default='DRAFT',
+        choices=KEYWORD_STATUS_CHOICES,
+        default='USER_DRAFT',
         help_text="The current status of the keyword (LOCKED, DRAFT, DISCARDED)."
     )
 
@@ -314,6 +321,14 @@ class TopicScopeElement(models.Model):
     """
     Stores individual scope elements (Timeframe, Geography, Population, etc.) for the Initiation Phase.
     """
+
+    SCOPE_STATUS_CHOICES = [
+        ('LOCKED', 'Locked (Committed and Finalized)'),
+        ('USER_DRAFT', 'User Draft (Created by User, Pending Review)'),
+        ('AI_EXTRACTED', 'AI Extracted (Captured by Agent, Needs Review)'),
+        ('ON_HOLD', 'On Hold (Excluded from Current Topic)'),
+    ]
+
     initiation_data = models.ForeignKey(
         'InitiationPhaseData',
         on_delete=models.CASCADE,
@@ -333,8 +348,8 @@ class TopicScopeElement(models.Model):
 
     status = models.CharField(
         max_length=20,
-        choices=[('LOCKED', 'Locked'), ('DRAFT', 'Draft'), ('DISCARDED', 'Discarded')],
-        default='DRAFT',
+        choices=SCOPE_STATUS_CHOICES,
+        default='USER_DRAFT',
         help_text="The current status of the scope element (LOCKED, DRAFT, DISCARDED)."
     )
 

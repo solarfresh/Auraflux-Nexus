@@ -97,7 +97,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
         TopicKeyword.objects.update_or_create(
             initiation_data=initiation_data,
             text=keyword_text,
-            defaults={'status': 'LOCKED'}
+            defaults={'status': 'AI_EXTRACTED'}
         )
 
     refined_scope_elements = payload.get('refined_scope_to_lock', [])
@@ -106,7 +106,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
             initiation_data=initiation_data,
             label=element.get('label'),
             value=element.get('value'),
-            defaults={'status': 'LOCKED'}
+            defaults={'status': 'AI_EXTRACTED'}
         )
 
     refined_keywords_instance = TopicKeyword.objects.filter(initiation_data=initiation_data).all()
