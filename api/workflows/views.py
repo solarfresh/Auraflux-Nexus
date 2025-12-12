@@ -21,8 +21,11 @@ from .serializers import (ChatEntryHistorySerializer, RefinedTopicSerializer,
                           WorkflowChatInputResponseSerializer)
 from .utils import (atomic_read_and_lock_initiation_data,
                     create_topic_keyword_by_session,
+                    create_topic_scope_element_by_session,
                     get_refined_topic_instance, get_topic_keyword_by_session,
-                    update_topic_keyword_by_id)
+                    get_topic_scope_element_by_session,
+                    update_topic_keyword_by_id,
+                    update_topic_scope_element_by_id)
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -178,11 +181,11 @@ class SessionTopicKeywordView(APIView):
         }
     )
     async def post(self, request, session_id):
-        keyword_text = request.data.get('keyword_text')
+        keyword_text = request.data.get('text')
         keyword_status = request.data.get('status', None)
         if not keyword_text:
             return Response(
-                {"detail": "keyword_text is required."},
+                {"detail": "text is required."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -200,6 +203,146 @@ class SessionTopicKeywordView(APIView):
             )
 
         return Response(data, status=status.HTTP_201_CREATED)
+
+
+class SessionTopicScopeElementView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Retrieve Topic Scope Elements for Workflow Session",
+        description=(
+            "Fetches the list of Topic Scope Elements associated with a specific workflow session identified by session_id."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the workflow session.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        responses={
+            200: TopicScopeElementSerializer,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        }
+    )
+    async def get(self, request, session_id):
+        try:
+            data = get_topic_scope_element_by_session(session_id)
+        except TopicScopeElement.DoesNotExist:
+            return Response({"detail": f"Topic scope elements not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Add a New Topic Scope Element",
+        description=(
+            "Adds a new Topic Scope Element to the InitiationPhaseData associated with the specified workflow session."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the workflow session.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        request=TopicScopeElementSerializer,
+        responses={
+            201: TopicScopeElementSerializer,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        }
+    )
+    async def post(self, request, session_id):
+        scope_label = request.data.get('label')
+        scope_value = request.data.get('value')
+        scope_status = request.data.get('status', None)
+        if not scope_label:
+            return Response(
+                {"detail": "label is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not scope_value:
+            return Response(
+                {"detail": "value is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            data = await sync_to_async(create_topic_scope_element_by_session)(session_id, scope_value, scope_label, scope_status)
+        except InitiationPhaseData.DoesNotExist:
+            return Response(
+                {"detail": f"Initiation data not found for session {session_id}."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except TopicScopeElement.DoesNotExist:
+            return Response(
+                {"detail": f"Failed to create scope for session {session_id}."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        return Response(data, status=status.HTTP_201_CREATED)
+
+
+class TopicScopeElementView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Update an Existing Topic Scope Element",
+        description=(
+            "Updates the text and status of an existing Topic Scope Element identified by scope_id."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="scope_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the topic scope element.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        request=TopicScopeElementSerializer,
+        responses={
+            200: TopicScopeElementSerializer,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        }
+    )
+    async def put(self, request, scope_id):
+        scope_label = request.data.get('label')
+        scope_value = request.data.get('value')
+        scope_status = request.data.get('status', None)
+        if not scope_label:
+            return Response(
+                {"detail": "label is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not scope_value:
+            return Response(
+                {"detail": "value is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            data = await sync_to_async(update_topic_scope_element_by_id)(scope_id, scope_value, scope_label, scope_status)
+        except TopicScopeElement.DoesNotExist:
+            return Response(
+                {"detail": f"Scope Element '{scope_id}' not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        return Response(data, status=status.HTTP_200_OK)
+
 
 class TopicKeywordView(APIView):
 
@@ -228,11 +371,11 @@ class TopicKeywordView(APIView):
         }
     )
     async def put(self, request, keyword_id):
-        keyword_text = request.data.get('keyword_text')
+        keyword_text = request.data.get('text')
         keyword_status = request.data.get('status', None)
         if not keyword_text:
             return Response(
-                {"detail": "keyword_text is required."},
+                {"detail": "text is required."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

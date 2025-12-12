@@ -3,11 +3,10 @@ from uuid import UUID
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404
 
-from .models import InitiationPhaseData, ResearchWorkflowState, TopicKeyword
-from .serializers import TopicKeywordSerializer
+from .models import InitiationPhaseData, ResearchWorkflowState, TopicKeyword, TopicScopeElement
+from .serializers import TopicKeywordSerializer, TopicScopeElementSerializer
 
 if TYPE_CHECKING:
     from users.models import User
@@ -74,6 +73,45 @@ def determine_feasibility_status(score: int, is_niche: bool) -> str:
         return 'HIGH'
     return 'MEDIUM'
 
+def create_topic_scope_element_by_session(session_id: UUID, scope_label: str, scope_value: str, scope_status: str | None = None):
+    initial_data = get_refined_topic_instance(session_id)
+    new_scope = TopicScopeElement.objects.create(
+        initial_data=initial_data,
+        scope_label=scope_label,
+        scope_value=scope_value,
+        scope_status='USER_DRAFT'
+    )
+
+    if scope_status is not None:
+        new_scope.status = scope_status
+
+    new_scope.save()
+
+    return get_topic_scope_element_by_session(session_id)
+
+def update_topic_scope_element_by_id(scope_id: UUID, scope_label: str, scope_value: str, scope_status: str | None = None):
+    scope_instance = TopicScopeElement.objects.select_related(
+        'initiation_data'
+    ).get(
+        id=scope_id
+    )
+
+    scope_instance.label = scope_label
+    scope_instance.value = scope_value
+    if scope_status is not None:
+        scope_instance.status = scope_status
+
+    scope_instance.save()
+
+    instances = TopicScopeElement.objects.filter(initiation_data=scope_instance.initiation_data).all()
+    serializer = TopicKeywordSerializer(instances, many=True)
+    return serializer.data
+
+def get_topic_scope_element_by_session(session_id: UUID):
+    instances = TopicScopeElement.objects.filter(initiation_data_id=session_id).all()
+    serializer = TopicScopeElementSerializer(instances, many=True)
+    return serializer.data
+
 def create_topic_keyword_by_session(session_id: UUID, keyword_text: str, keyword_status: str | None = None):
     initial_data = get_refined_topic_instance(session_id)
     new_keyword = TopicKeyword.objects.create(
@@ -85,9 +123,8 @@ def create_topic_keyword_by_session(session_id: UUID, keyword_text: str, keyword
         new_keyword.status = keyword_status
 
     new_keyword.save()
-    instances = TopicKeyword.objects.filter(initial_data=initial_data).all()
-    serializer = TopicKeywordSerializer(instances, many=True)
-    return serializer.data
+
+    return get_topic_keyword_by_session(session_id)
 
 def get_topic_keyword_by_session(session_id: UUID):
     instances = TopicKeyword.objects.filter(initiation_data_id=session_id).all()
