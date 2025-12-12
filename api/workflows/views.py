@@ -152,7 +152,7 @@ class SessionTopicKeywordView(APIView):
     )
     async def get(self, request, session_id):
         try:
-            data = get_topic_keyword_by_session(session_id)
+            data = get_topic_keyword_by_session(session_id, serializer_class=TopicKeywordSerializer)
         except TopicKeyword.DoesNotExist:
             return Response({"detail": f"Topic keywords not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -190,7 +190,7 @@ class SessionTopicKeywordView(APIView):
             )
 
         try:
-            data = await sync_to_async(create_topic_keyword_by_session)(session_id, keyword_text, keyword_status)
+            data = await sync_to_async(create_topic_keyword_by_session)(session_id, keyword_text, keyword_status, serializer_class=TopicKeywordSerializer)
         except InitiationPhaseData.DoesNotExist:
             return Response(
                 {"detail": f"Initiation data not found for session {session_id}."},
@@ -231,7 +231,7 @@ class SessionTopicScopeElementView(APIView):
     )
     async def get(self, request, session_id):
         try:
-            data = get_topic_scope_element_by_session(session_id)
+            data = get_topic_scope_element_by_session(session_id, serializer_class=TopicScopeElementSerializer)
         except TopicScopeElement.DoesNotExist:
             return Response({"detail": f"Topic scope elements not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -276,7 +276,7 @@ class SessionTopicScopeElementView(APIView):
             )
 
         try:
-            data = await sync_to_async(create_topic_scope_element_by_session)(session_id, scope_value, scope_label, scope_status)
+            data = await sync_to_async(create_topic_scope_element_by_session)(session_id, scope_value, scope_label, scope_status, serializer_class=TopicScopeElementSerializer)
         except InitiationPhaseData.DoesNotExist:
             return Response(
                 {"detail": f"Initiation data not found for session {session_id}."},
@@ -289,6 +289,52 @@ class SessionTopicScopeElementView(APIView):
             )
 
         return Response(data, status=status.HTTP_201_CREATED)
+
+
+class TopicKeywordView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Update an Existing Topic Keyword",
+        description=(
+            "Updates the text and status of an existing Topic Keyword identified by keyword_id."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="keyword_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the topic keyword.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        request=TopicKeywordSerializer,
+        responses={
+            200: TopicKeywordSerializer,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        }
+    )
+    async def put(self, request, keyword_id):
+        keyword_text = request.data.get('text')
+        keyword_status = request.data.get('status', None)
+        if not keyword_text:
+            return Response(
+                {"detail": "text is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            data = await sync_to_async(update_topic_keyword_by_id)(keyword_id, keyword_text, keyword_status, serializer_class=TopicKeywordSerializer)
+        except TopicKeyword.DoesNotExist:
+            return Response(
+                {"detail": f"Keyword '{keyword_id}' not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class TopicScopeElementView(APIView):
@@ -334,56 +380,10 @@ class TopicScopeElementView(APIView):
             )
 
         try:
-            data = await sync_to_async(update_topic_scope_element_by_id)(scope_id, scope_value, scope_label, scope_status)
+            data = await sync_to_async(update_topic_scope_element_by_id)(scope_id, scope_value, scope_label, scope_status, serializer_class=TopicScopeElementSerializer)
         except TopicScopeElement.DoesNotExist:
             return Response(
                 {"detail": f"Scope Element '{scope_id}' not found."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        return Response(data, status=status.HTTP_200_OK)
-
-
-class TopicKeywordView(APIView):
-
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="Update an Existing Topic Keyword",
-        description=(
-            "Updates the text and status of an existing Topic Keyword identified by keyword_id."
-        ),
-        parameters=[
-            OpenApiParameter(
-                name="keyword_id",
-                location=OpenApiParameter.PATH,
-                description="Unique identifier for the topic keyword.",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ],
-        request=TopicKeywordSerializer,
-        responses={
-            200: TopicKeywordSerializer,
-            400: OpenApiTypes.OBJECT,
-            404: OpenApiTypes.OBJECT,
-            500: OpenApiTypes.OBJECT,
-        }
-    )
-    async def put(self, request, keyword_id):
-        keyword_text = request.data.get('text')
-        keyword_status = request.data.get('status', None)
-        if not keyword_text:
-            return Response(
-                {"detail": "text is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            data = await sync_to_async(update_topic_keyword_by_id)(keyword_id, keyword_text, keyword_status)
-        except TopicKeyword.DoesNotExist:
-            return Response(
-                {"detail": f"Keyword '{keyword_id}' not found."},
                 status=status.HTTP_404_NOT_FOUND
             )
 

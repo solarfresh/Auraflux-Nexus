@@ -6,7 +6,6 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 
 from .models import InitiationPhaseData, ResearchWorkflowState, TopicKeyword, TopicScopeElement
-from .serializers import TopicKeywordSerializer, TopicScopeElementSerializer
 
 if TYPE_CHECKING:
     from users.models import User
@@ -73,7 +72,19 @@ def determine_feasibility_status(score: int, is_niche: bool) -> str:
         return 'HIGH'
     return 'MEDIUM'
 
-def create_topic_scope_element_by_session(session_id: UUID, scope_label: str, scope_value: str, scope_status: str | None = None):
+def get_resource_suggestion(feasibility_status: str) -> str:
+    if feasibility_status == 'HIGH':
+        return "Focus your next search using specialized academic databases (e.g., Scopus, Web of Science) targeting the specific geographical and time scope."
+    elif feasibility_status == 'MEDIUM':
+        return "Use a combination of general search engines and credible institutional reports (e.g., OECD, World Bank) to solidify your topic."
+    elif feasibility_status == 'LOW':
+        return "The topic is highly niche or information-scarce. Start with broad keyword searches and general encyclopedias to establish foundational context before narrowing down."
+    return "Please define your topic further to get a resource suggestion."
+
+def create_topic_scope_element_by_session(session_id: UUID, scope_label: str, scope_value: str, scope_status: str | None = None, serializer_class = None):
+    if serializer_class is None:
+        raise ValueError("serializer_class must be provided")
+
     initial_data = get_refined_topic_instance(session_id)
     new_scope = TopicScopeElement.objects.create(
         initial_data=initial_data,
@@ -87,9 +98,12 @@ def create_topic_scope_element_by_session(session_id: UUID, scope_label: str, sc
 
     new_scope.save()
 
-    return get_topic_scope_element_by_session(session_id)
+    return get_topic_scope_element_by_session(session_id, serializer_class)
 
-def update_topic_scope_element_by_id(scope_id: UUID, scope_label: str, scope_value: str, scope_status: str | None = None):
+def update_topic_scope_element_by_id(scope_id: UUID, scope_label: str, scope_value: str, scope_status: str | None = None, serializer_class = None):
+    if serializer_class is None:
+        raise ValueError("serializer_class must be provided")
+
     scope_instance = TopicScopeElement.objects.select_related(
         'initiation_data'
     ).get(
@@ -104,15 +118,21 @@ def update_topic_scope_element_by_id(scope_id: UUID, scope_label: str, scope_val
     scope_instance.save()
 
     instances = TopicScopeElement.objects.filter(initiation_data=scope_instance.initiation_data).all()
-    serializer = TopicKeywordSerializer(instances, many=True)
+    serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def get_topic_scope_element_by_session(session_id: UUID):
+def get_topic_scope_element_by_session(session_id: UUID, serializer_class = None):
+    if serializer_class is None:
+        raise ValueError("serializer_class must be provided")
+
     instances = TopicScopeElement.objects.filter(initiation_data_id=session_id).all()
-    serializer = TopicScopeElementSerializer(instances, many=True)
+    serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def create_topic_keyword_by_session(session_id: UUID, keyword_text: str, keyword_status: str | None = None):
+def create_topic_keyword_by_session(session_id: UUID, keyword_text: str, keyword_status: str | None = None, serializer_class = None):
+    if serializer_class is None:
+        raise ValueError("serializer_class must be provided")
+
     initial_data = get_refined_topic_instance(session_id)
     new_keyword = TopicKeyword.objects.create(
         initiation_data=initial_data,
@@ -124,14 +144,20 @@ def create_topic_keyword_by_session(session_id: UUID, keyword_text: str, keyword
 
     new_keyword.save()
 
-    return get_topic_keyword_by_session(session_id)
+    return get_topic_keyword_by_session(session_id, serializer_class)
 
-def get_topic_keyword_by_session(session_id: UUID):
+def get_topic_keyword_by_session(session_id: UUID, serializer_class = None):
+    if serializer_class is None:
+        raise ValueError("serializer_class must be provided")
+
     instances = TopicKeyword.objects.filter(initiation_data_id=session_id).all()
-    serializer = TopicKeywordSerializer(instances, many=True)
+    serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def update_topic_keyword_by_id(keyword_id: UUID, keyword_text: str, keyword_status: str | None = None):
+def update_topic_keyword_by_id(keyword_id: UUID, keyword_text: str, keyword_status: str | None = None, serializer_class = None):
+    if serializer_class is None:
+        raise ValueError("serializer_class must be provided")
+
     keyword_instance = TopicKeyword.objects.select_related(
         'initiation_data'
     ).get(
@@ -145,7 +171,7 @@ def update_topic_keyword_by_id(keyword_id: UUID, keyword_text: str, keyword_stat
     keyword_instance.save()
 
     instances = TopicKeyword.objects.filter(initiation_data=keyword_instance.initiation_data).all()
-    serializer = TopicKeywordSerializer(instances, many=True)
+    serializer = serializer_class(instances, many=True)
     return serializer.data
 
 def get_workflow_state(session_id: UUID, user_id: int) -> ResearchWorkflowState:
