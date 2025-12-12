@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from .models import (ChatHistoryEntry, InitiationPhaseData, TopicKeyword,
                      TopicScopeElement, UserReflectionLog)
+from .utils import get_resource_suggestion
 
 
 class ChatEntryHistorySerializer(ModelSerializer):
@@ -109,15 +110,7 @@ class RefinedTopicSerializer(ModelSerializer):
         """
         Calculates and returns a resource search suggestion based on the feasibility status.
         """
-        feasibility_status = obj.feasibility_status
-
-        if feasibility_status == 'HIGH':
-            return "Focus your next search using specialized academic databases (e.g., Scopus, Web of Science) targeting the specific geographical and time scope."
-        elif feasibility_status == 'MEDIUM':
-            return "Use a combination of general search engines and credible institutional reports (e.g., OECD, World Bank) to solidify your topic."
-        elif feasibility_status == 'LOW':
-            return "The topic is highly niche or information-scarce. Start with broad keyword searches and general encyclopedias to establish foundational context before narrowing down."
-        return "Please define your topic further to get a resource suggestion."
+        return get_resource_suggestion(obj.feasibility_status)
 
 
 class UserReflectionLogSerializer(ModelSerializer):
