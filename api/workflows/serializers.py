@@ -102,10 +102,10 @@ class ReflectionLogSerializer(ModelSerializer):
             'title',
             'content',
             'status',
-            'create_at',
+            'created_at',
             'updated_at'
         )
-        read_only_fields = ('id', 'create_at', 'updated_at')
+        read_only_fields = ('id', 'created_at', 'updated_at')
 
 
 class WorkflowChatInputRequestSerializer(Serializer):
