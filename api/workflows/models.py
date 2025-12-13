@@ -291,6 +291,13 @@ class TopicKeyword(models.Model):
         help_text="Unique identifier for the keyword entry."
     )
 
+    initiation_data = models.ForeignKey(
+        InitiationPhaseData,
+        on_delete=models.CASCADE,
+        related_name='keywords_list',
+        help_text="Foreign key linking the keyword to the parent initial phase data session."
+    )
+
     workflow_state = models.ForeignKey(
         ResearchWorkflowState,
         on_delete=models.CASCADE,
@@ -353,6 +360,13 @@ class TopicScopeElement(models.Model):
         editable=False,
         default=uuid.uuid4,
         help_text="Unique identifier for the scope element entry."
+    )
+
+    initiation_data = models.ForeignKey(
+        InitiationPhaseData,
+        on_delete=models.CASCADE,
+        related_name='scope_elements_list',
+        help_text="Foreign key linking the scope to the parent initial phase data session."
     )
 
     workflow_state = models.ForeignKey(

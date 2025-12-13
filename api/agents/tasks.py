@@ -45,7 +45,6 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
         'locked_keywords_list': payload.get('locked_keywords_list'),
         'locked_scope_elements_list': payload.get('locked_scope_elements_list'),
         'conversation_summary_of_old_history': conversation_summary_of_old_history,
-        'latest_reflection_entry': payload.get('latest_reflection_entry'),
         'recent_turns_of_chat_history': chat_history,
         'latest_user_input': payload.get('latest_user_input'),
         'discarded_elements_list': payload.get('discarded_elements_list')
@@ -230,7 +229,6 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         'locked_keywords_list': payload.get('locked_keywords_list'),
         'locked_scope_elements_list': payload.get('locked_scope_elements_list'),
         'conversation_summary_of_old_history': payload.get('conversation_summary_of_old_history'),
-        'latest_reflection_entry': payload.get('latest_reflection_entry'),
         'recent_turns_of_chat_history': recent_turns_of_chat_history,
         'latest_user_input': user_message
     }

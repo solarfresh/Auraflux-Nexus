@@ -45,7 +45,6 @@ def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tupl
 def get_refined_topic_instance(session_id: UUID):
     initiation_instance = InitiationPhaseData.objects.select_related(
         'workflow_state',
-        'latest_reflection_entry'
     ).prefetch_related(
         'keywords_list',
         'scope_elements_list'

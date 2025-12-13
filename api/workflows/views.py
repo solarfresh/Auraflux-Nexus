@@ -630,7 +630,6 @@ class WorkflowChatInputView(APIView):
             "locked_scope_elements_list": await get_serialized_data({'initiation_data_id': session_id, 'status': 'LOCKED'}, TopicScopeElement, TopicScopeElementSerializer, many=True),
             "discarded_elements_list": [],
             "conversation_summary_of_old_history": phase_data.conversation_summary,
-            "latest_reflection_entry": phase_data.latest_reflection_entry.entry_text if phase_data.latest_reflection_entry is not None else '',
             'last_analysis_sequence_number': phase_data.last_analysis_sequence_number,
             "current_chat_history": await get_serialized_data({'workflow_state_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
         }
