@@ -14,17 +14,21 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import (ChatHistoryEntry, InitiationPhaseData, KuhlthauStage,
-                     ResearchWorkflowState, TopicKeyword, TopicScopeElement)
+                     ReflectionLog, ResearchWorkflowState, TopicKeyword,
+                     TopicScopeElement)
 from .serializers import (ChatEntryHistorySerializer, RefinedTopicSerializer,
-                          TopicKeywordSerializer, TopicScopeElementSerializer,
+                          ReflectionLogSerializer, TopicKeywordSerializer,
+                          TopicScopeElementSerializer,
                           WorkflowChatInputRequestSerializer,
                           WorkflowChatInputResponseSerializer)
 from .utils import (atomic_read_and_lock_initiation_data,
+                    create_reflection_log_by_session,
                     create_topic_keyword_by_session,
                     create_topic_scope_element_by_session,
-                    get_refined_topic_instance, get_topic_keyword_by_session,
+                    get_refined_topic_instance, get_reflection_log_by_session,
+                    get_topic_keyword_by_session,
                     get_topic_scope_element_by_session,
-                    update_topic_keyword_by_id,
+                    update_reflection_log_by_id, update_topic_keyword_by_id,
                     update_topic_scope_element_by_id)
 
 User = get_user_model()
@@ -126,6 +130,97 @@ class RefinedTopicView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+class SessionReflectionLogView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Retrieve Reflection Log for Workflow Session",
+        description=(
+            "Fetches the list of Reflection Logs associated with a specific workflow session identified by session_id."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the workflow session.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        responses={
+            200: ReflectionLogSerializer,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        }
+    )
+    async def get(self, request, session_id):
+        try:
+            data = get_reflection_log_by_session(session_id, serializer_class=ReflectionLogSerializer)
+        except ReflectionLog.DoesNotExist:
+            return Response({"detail": f"Reflection logs not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Add a New Reflection Log",
+        description=(
+            "Adds a new Reflection Log associated with the specified workflow session."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the workflow session.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        request=ReflectionLogSerializer,
+        responses={
+            201: ReflectionLogSerializer,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        }
+    )
+    async def post(self, request, session_id):
+        reflection_log_title = request.data.get('title')
+        reflection_log_content = request.data.get('content')
+        reflection_log_status = request.data.get('status', None)
+        if not reflection_log_title:
+            return Response(
+                {"detail": "title is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not reflection_log_content:
+            return Response(
+                {"detail": "content is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            data = await sync_to_async(create_reflection_log_by_session)(
+                session_id,
+                reflection_log_title,
+                reflection_log_content,
+                reflection_log_status,
+                serializer_class=ReflectionLogSerializer)
+        except ResearchWorkflowState.DoesNotExist:
+            return Response(
+                {"detail": f"Research workflow state not found for session {session_id}."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except ReflectionLog.DoesNotExist:
+            return Response(
+                {"detail": f"Failed to create reflection log for session {session_id}."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        return Response(data, status=status.HTTP_201_CREATED)
+
+
 class SessionTopicKeywordView(APIView):
 
     permission_classes = [IsAuthenticated]
@@ -161,7 +256,7 @@ class SessionTopicKeywordView(APIView):
     @extend_schema(
         summary="Add a New Topic Keyword",
         description=(
-            "Adds a new Topic Keyword to the InitiationPhaseData associated with the specified workflow session."
+            "Adds a new Topic Keyword associated with the specified workflow session."
         ),
         parameters=[
             OpenApiParameter(
@@ -191,9 +286,9 @@ class SessionTopicKeywordView(APIView):
 
         try:
             data = await sync_to_async(create_topic_keyword_by_session)(session_id, keyword_text, keyword_status, serializer_class=TopicKeywordSerializer)
-        except InitiationPhaseData.DoesNotExist:
+        except ResearchWorkflowState.DoesNotExist:
             return Response(
-                {"detail": f"Initiation data not found for session {session_id}."},
+                {"detail": f"Research workflow state not found for session {session_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
         except TopicKeyword.DoesNotExist:
@@ -240,7 +335,7 @@ class SessionTopicScopeElementView(APIView):
     @extend_schema(
         summary="Add a New Topic Scope Element",
         description=(
-            "Adds a new Topic Scope Element to the InitiationPhaseData associated with the specified workflow session."
+            "Adds a new Topic Scope Element associated with the specified workflow session."
         ),
         parameters=[
             OpenApiParameter(
@@ -277,9 +372,9 @@ class SessionTopicScopeElementView(APIView):
 
         try:
             data = await sync_to_async(create_topic_scope_element_by_session)(session_id, scope_value, scope_label, scope_status, serializer_class=TopicScopeElementSerializer)
-        except InitiationPhaseData.DoesNotExist:
+        except ResearchWorkflowState.DoesNotExist:
             return Response(
-                {"detail": f"Initiation data not found for session {session_id}."},
+                {"detail": f"Research workflow state not found for session {session_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
         except TopicScopeElement.DoesNotExist:
@@ -289,6 +384,64 @@ class SessionTopicScopeElementView(APIView):
             )
 
         return Response(data, status=status.HTTP_201_CREATED)
+
+
+class ReflectionLogView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Update an Existing Reflection Log",
+        description=(
+            "Updates the text and status of an existing Reflection Log identified by log_id."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="log_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the topic keyword.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ],
+        request=ReflectionLogSerializer,
+        responses={
+            200: ReflectionLogSerializer,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        }
+    )
+    async def put(self, request, log_id):
+        reflection_log_title = request.data.get('title')
+        reflection_log_content = request.data.get('content')
+        reflection_log_status = request.data.get('status', None)
+        if not reflection_log_title:
+            return Response(
+                {"detail": "title is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not reflection_log_content:
+            return Response(
+                {"detail": "content is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            data = await sync_to_async(update_reflection_log_by_id)(
+                log_id,
+                reflection_log_title,
+                reflection_log_content,
+                reflection_log_status,
+                serializer_class=ReflectionLogSerializer)
+        except ReflectionLog.DoesNotExist:
+            return Response(
+                {"detail": f"Reflection Log '{log_id}' not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class TopicKeywordView(APIView):

@@ -2,7 +2,7 @@ from adrf.serializers import ModelSerializer, Serializer
 from rest_framework import serializers
 
 from .models import (ChatHistoryEntry, InitiationPhaseData, TopicKeyword,
-                     TopicScopeElement, UserReflectionLog)
+                     TopicScopeElement, ReflectionLog)
 from .utils import get_resource_suggestion
 
 
@@ -113,13 +113,21 @@ class RefinedTopicSerializer(ModelSerializer):
         return get_resource_suggestion(obj.feasibility_status)
 
 
-class UserReflectionLogSerializer(ModelSerializer):
+class ReflectionLogSerializer(ModelSerializer):
     """
     Serializer for user reflection logs.
     """
     class Meta:
-        model = UserReflectionLog
-        fields = ('id', 'user_id', 'reflection_text', 'created_at')
+        model = ReflectionLog
+        fields = (
+            'id',
+            'title',
+            'content',
+            'status',
+            'create_at',
+            'updated_at'
+        )
+        read_only_fields = ('id', 'create_at', 'updated_at')
 
 
 class WorkflowChatInputRequestSerializer(Serializer):
