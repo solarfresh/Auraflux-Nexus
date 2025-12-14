@@ -96,6 +96,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
     for keyword_text in refined_keywords:
         TopicKeyword.objects.update_or_create(
             initiation_data=initiation_data,
+            workflow_state=initiation_data.workflow_state,
             text=keyword_text,
             defaults={'status': 'AI_EXTRACTED'}
         )
@@ -104,6 +105,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
     for element in refined_scope_elements:
         TopicScopeElement.objects.update_or_create(
             initiation_data=initiation_data,
+            workflow_state=initiation_data.workflow_state,
             label=element.get('label'),
             value=element.get('value'),
             defaults={'status': 'AI_EXTRACTED'}
