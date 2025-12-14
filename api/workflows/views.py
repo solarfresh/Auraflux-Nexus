@@ -156,7 +156,7 @@ class SessionReflectionLogView(APIView):
     )
     async def get(self, request, session_id):
         try:
-            data = get_reflection_log_by_session(session_id, serializer_class=ReflectionLogSerializer)
+            data = await sync_to_async(get_reflection_log_by_session)(session_id, serializer_class=ReflectionLogSerializer)
         except ReflectionLog.DoesNotExist:
             return Response({"detail": f"Reflection logs not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -247,7 +247,7 @@ class SessionTopicKeywordView(APIView):
     )
     async def get(self, request, session_id):
         try:
-            data = get_topic_keyword_by_session(session_id, serializer_class=TopicKeywordSerializer)
+            data = await sync_to_async(get_topic_keyword_by_session)(session_id, serializer_class=TopicKeywordSerializer)
         except TopicKeyword.DoesNotExist:
             return Response({"detail": f"Topic keywords not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -326,7 +326,7 @@ class SessionTopicScopeElementView(APIView):
     )
     async def get(self, request, session_id):
         try:
-            data = get_topic_scope_element_by_session(session_id, serializer_class=TopicScopeElementSerializer)
+            data = await sync_to_async(get_topic_scope_element_by_session)(session_id, serializer_class=TopicScopeElementSerializer)
         except TopicScopeElement.DoesNotExist:
             return Response({"detail": f"Topic scope elements not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
 
