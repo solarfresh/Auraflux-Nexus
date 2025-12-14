@@ -1,9 +1,7 @@
 import uuid
 
 from django.contrib.auth import get_user_model
-from django.contrib.postgres.fields import ArrayField
 from django.db import models
-from django.db.models import JSONField
 
 # Use the default Django User model for association
 User = get_user_model()
@@ -17,7 +15,6 @@ class KuhlthauStage(models.TextChoices):
     COLLECTION = 'COLLECTION', '4. Collection (Satisfaction)'
     PRESENTATION = 'PRESENTATION', '5. Presentation (Closure)'
 
-    # 額外定義一個方便的屬性，例如用於狀態判斷
     @classmethod
     def get_emotional_state(cls, stage):
         if stage == cls.TOPIC_DEFINITION_LOCKIN:
@@ -156,10 +153,15 @@ class ChatHistoryEntry(models.Model):
         ordering = ['timestamp', 'sequence_number']
 
 
-class UserReflectionLog(models.Model):
+class ReflectionLog(models.Model):
     """
     Stores individual user reflection entries for tracking emotional/cognitive state.
     """
+
+    REFLECTION_STATUS_CHOICES = (
+        ('DRAFT', 'Draft'),
+        ('COMMITTED', 'Committed'),
+    )
 
     id = models.UUIDField(
         primary_key=True,
@@ -168,16 +170,49 @@ class UserReflectionLog(models.Model):
         help_text="Unique identifier for the reflection entry."
     )
 
-    session_id = models.CharField(max_length=255, db_index=True)
-    entry_text = models.TextField(help_text="The user's self-reported reflection text.")
+    workflow_state = models.ForeignKey(
+        ResearchWorkflowState,
+        on_delete=models.CASCADE,
+        related_name='reflection_log_entries',
+        help_text="Foreign key linking the reflection logs to the parent research workflow session."
+    )
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    title = models.CharField(
+        max_length=255,
+        help_text="A short summary title for the log entry."
+    )
+    content = models.TextField(
+        help_text="The detailed reflection content or thought."
+    )
+
+    status = models.CharField(
+        max_length=10,
+        choices=REFLECTION_STATUS_CHOICES,
+        default='DRAFT',
+        help_text="The current state of the log (DRAFT or COMMITTED)."
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        help_text="The exact time the log entry was first created."
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        db_index=True,
+        help_text="The time the log entry was last modified/saved."
+    )
 
     class Meta:
-        ordering = ['-created_at']
+        """Model options."""
+        verbose_name = "Reflection Log Entry"
+        verbose_name_plural = "Reflection Log Entries"
+        # Indexing by update time is useful for fetching the latest drafts/commits
+        ordering = ['-updated_at']
 
     def __str__(self):
-        return f"Reflection for {self.session_id} at {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+        """String representation of the model instance."""
+        return f"[{self.status.upper()}] {self.title} ({self.id})"
 
 
 class InitiationPhaseData(models.Model):
@@ -225,44 +260,6 @@ class InitiationPhaseData(models.Model):
         help_text="The sequence number of the last chat message included in the latest structured analysis (TR Agent) or summary (SUM Agent). Serves as the checkpoint anchor for the next incremental operation."
     )
 
-    latest_reflection_entry = models.ForeignKey(
-        'UserReflectionLog',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='analyzed_in_initiation',
-        help_text="The specific reflection log entry that was included in the last TR Agent structured analysis."
-    )
-
-    # --- Cost Control & Agent Activation Variables (Revising existing fields) ---
-    # Renaming to reflect general Agent evaluation, not just DA
-    # agent_evaluation_count = models.IntegerField(
-    #     default=0,
-    #     help_text="Consecutive turns where structured output showed no significant change. Used for control."
-    # )
-    # DA/Background Agent fields (keeping them for background validation logic)
-    # da_activation_threshold = models.FloatField(
-    #     default=4.0, # Adjusting threshold to fit 1-10 scale (e.g., score >= 4)
-    #     help_text="The Stability Score threshold required to trigger the Data Agent's asynchronous work."
-    # )
-    # last_da_execution_time = models.DateTimeField(
-    #     null=True,
-    #     blank=True,
-    #     help_text="Timestamp of the last completed Data Agent background validation run."
-    # )
-
-    # --- Detailed Agent Data & History (Logging) ---
-    # agent_reasoning_log = JSONField(
-    #     default=dict,
-    #     blank=True,
-    #     help_text="Detailed reasoning log from the Topic Refinement Agent (TR Agent) after structured output."
-    # )
-    # The existing DA report field can be repurposed or kept:
-    # da_validation_report = JSONField(
-    #     default=dict,
-    #     help_text="Detailed JSON report from the Data Agent (DA) after validation (includes IDF/QMS)."
-    # )
-
     # --- Metadata ---
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -295,10 +292,17 @@ class TopicKeyword(models.Model):
     )
 
     initiation_data = models.ForeignKey(
-        'InitiationPhaseData',
+        InitiationPhaseData,
         on_delete=models.CASCADE,
         related_name='keywords_list',
-        help_text="Link to the parent InitiationPhaseData record."
+        help_text="Foreign key linking the keyword to the parent initial phase data session."
+    )
+
+    workflow_state = models.ForeignKey(
+        ResearchWorkflowState,
+        on_delete=models.CASCADE,
+        related_name='keywords_list',
+        help_text="Foreign key linking the keyword to the parent research workflow session."
     )
 
     text = models.CharField(
@@ -325,17 +329,18 @@ class TopicKeyword(models.Model):
         verbose_name = "Topic Keyword"
         verbose_name_plural = "Topic Keywords"
         indexes = [
-            models.Index(fields=['initiation_data', 'status']),
+            models.Index(fields=['workflow_state', 'status']),
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['initiation_data', 'text'],
+                fields=['workflow_state', 'text'],
                 name='unique_keyword_per_session'
             )
         ]
+        ordering = ['-updated_at']
 
     def __str__(self):
-        return f"[{self.status}] {self.text} for Session {self.initiation_data.workflow_state.session_id}"
+        return f"[{self.status}] {self.text} for Session {self.workflow_state.session_id}"
 
 
 class TopicScopeElement(models.Model):
@@ -358,10 +363,17 @@ class TopicScopeElement(models.Model):
     )
 
     initiation_data = models.ForeignKey(
-        'InitiationPhaseData',
+        InitiationPhaseData,
         on_delete=models.CASCADE,
         related_name='scope_elements_list',
-        help_text="Link to the parent InitiationPhaseData record."
+        help_text="Foreign key linking the scope to the parent initial phase data session."
+    )
+
+    workflow_state = models.ForeignKey(
+        ResearchWorkflowState,
+        on_delete=models.CASCADE,
+        related_name='scope_elements_list',
+        help_text="Foreign key linking the scope element to the parent research workflow session."
     )
 
     label = models.CharField(
@@ -388,14 +400,15 @@ class TopicScopeElement(models.Model):
         verbose_name = "Topic Scope Element"
         verbose_name_plural = "Topic Scope Elements"
         indexes = [
-            models.Index(fields=['initiation_data', 'label', 'status']),
+            models.Index(fields=['workflow_state', 'label', 'status']),
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['initiation_data', 'label', 'value'],
+                fields=['workflow_state', 'label', 'value'],
                 name='unique_scope_element_per_session'
             )
         ]
+        ordering = ['-updated_at']
 
     def __str__(self):
-        return f"[{self.status}] {self.label}: {self.value} for Session {self.initiation_data.workflow_state.session_id}"
+        return f"[{self.status}] {self.label}: {self.value} for Session {self.workflow_state.session_id}"

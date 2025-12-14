@@ -2,7 +2,7 @@ from adrf.serializers import ModelSerializer, Serializer
 from rest_framework import serializers
 
 from .models import (ChatHistoryEntry, InitiationPhaseData, TopicKeyword,
-                     TopicScopeElement, UserReflectionLog)
+                     TopicScopeElement, ReflectionLog)
 from .utils import get_resource_suggestion
 
 
@@ -71,14 +71,6 @@ class RefinedTopicSerializer(ModelSerializer):
         read_only=True
     )
 
-    latest_reflection = serializers.CharField(
-        source='latest_reflection_entry.entry_text',
-        read_only=True,
-        allow_null=True,
-        default=None,
-        help_text="The text of the user's latest self-reflection entry."
-    )
-
     resource_suggestion = serializers.SerializerMethodField()
 
     class Meta:
@@ -89,22 +81,8 @@ class RefinedTopicSerializer(ModelSerializer):
             'final_research_question',
             'keywords',
             'scope',
-            'latest_reflection',
             'resource_suggestion',
         )
-
-        # stability_score -> stabilityScore
-        # final_research_question -> finalQuestion
-        # field_mapping = {
-        #     'stability_score': 'stabilityScore',
-        #     'final_research_question': 'finalQuestion',
-        # }
-
-    # def get_field_names(self, declared_fields: Dict[str, Any], info: Dict[str, Any]) -> list:
-    #     """Dynamically map database names to frontend prop names."""
-    #     fields = super().get_field_names(declared_fields, info)
-    #     mapped_fields = [self.Meta.field_mapping.get(f, f) for f in fields]
-    #     return mapped_fields
 
     def get_resource_suggestion(self, obj: InitiationPhaseData) -> str:
         """
@@ -113,13 +91,21 @@ class RefinedTopicSerializer(ModelSerializer):
         return get_resource_suggestion(obj.feasibility_status)
 
 
-class UserReflectionLogSerializer(ModelSerializer):
+class ReflectionLogSerializer(ModelSerializer):
     """
     Serializer for user reflection logs.
     """
     class Meta:
-        model = UserReflectionLog
-        fields = ('id', 'user_id', 'reflection_text', 'created_at')
+        model = ReflectionLog
+        fields = (
+            'id',
+            'title',
+            'content',
+            'status',
+            'created_at',
+            'updated_at'
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at')
 
 
 class WorkflowChatInputRequestSerializer(Serializer):

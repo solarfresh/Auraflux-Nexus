@@ -5,7 +5,8 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 
-from .models import InitiationPhaseData, ResearchWorkflowState, TopicKeyword, TopicScopeElement
+from .models import (InitiationPhaseData, ReflectionLog, ResearchWorkflowState,
+                     TopicKeyword, TopicScopeElement)
 
 if TYPE_CHECKING:
     from users.models import User
@@ -44,7 +45,6 @@ def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tupl
 def get_refined_topic_instance(session_id: UUID):
     initiation_instance = InitiationPhaseData.objects.select_related(
         'workflow_state',
-        'latest_reflection_entry'
     ).prefetch_related(
         'keywords_list',
         'scope_elements_list'
@@ -81,13 +81,59 @@ def get_resource_suggestion(feasibility_status: str) -> str:
         return "The topic is highly niche or information-scarce. Start with broad keyword searches and general encyclopedias to establish foundational context before narrowing down."
     return "Please define your topic further to get a resource suggestion."
 
+def create_reflection_log_by_session(session_id: UUID, reflection_log_title: str, reflection_log_content: str, reflection_log_status: str | None = None, serializer_class = None):
+    if serializer_class is None:
+        raise ValueError("serializer_class must be provided")
+
+    new_log = ReflectionLog.objects.create(
+        workflow_state_id=session_id,
+        title=reflection_log_title,
+        content=reflection_log_content,
+        status='DRAFT'
+    )
+
+    if reflection_log_status is not None:
+        new_log.status = reflection_log_status
+
+    new_log.save()
+
+    return get_reflection_log_by_session(session_id, serializer_class)
+
+def update_reflection_log_by_id(log_id: UUID, reflection_log_title: str, reflection_log_content: str, reflection_log_status: str | None = None, serializer_class = None):
+    if serializer_class is None:
+        raise ValueError("serializer_class must be provided")
+
+    log_instance = ReflectionLog.objects.select_related(
+        'workflow_state'
+    ).get(
+        id=log_id
+    )
+
+    log_instance.title = reflection_log_title
+    log_instance.content = reflection_log_content
+    if reflection_log_status is not None:
+        log_instance.status = reflection_log_status
+
+    log_instance.save()
+
+    instances = ReflectionLog.objects.filter(workflow_state=log_instance.workflow_state).all()
+    serializer = serializer_class(instances, many=True)
+    return serializer.data
+
+def get_reflection_log_by_session(session_id: UUID, serializer_class = None):
+    if serializer_class is None:
+        raise ValueError("serializer_class must be provided")
+
+    instances = ReflectionLog.objects.filter(workflow_state_id=session_id).all()
+    serializer = serializer_class(instances, many=True)
+    return serializer.data
+
 def create_topic_scope_element_by_session(session_id: UUID, scope_label: str, scope_value: str, scope_status: str | None = None, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    initial_data = get_refined_topic_instance(session_id)
     new_scope = TopicScopeElement.objects.create(
-        initial_data=initial_data,
+        workflow_state_id=session_id,
         scope_label=scope_label,
         scope_value=scope_value,
         scope_status='USER_DRAFT'
@@ -105,7 +151,7 @@ def update_topic_scope_element_by_id(scope_id: UUID, scope_label: str, scope_val
         raise ValueError("serializer_class must be provided")
 
     scope_instance = TopicScopeElement.objects.select_related(
-        'initiation_data'
+        'workflow_state'
     ).get(
         id=scope_id
     )
@@ -117,7 +163,7 @@ def update_topic_scope_element_by_id(scope_id: UUID, scope_label: str, scope_val
 
     scope_instance.save()
 
-    instances = TopicScopeElement.objects.filter(initiation_data=scope_instance.initiation_data).all()
+    instances = TopicScopeElement.objects.filter(workflow_state=scope_instance.workflow_state).all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
@@ -125,7 +171,7 @@ def get_topic_scope_element_by_session(session_id: UUID, serializer_class = None
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    instances = TopicScopeElement.objects.filter(initiation_data_id=session_id).all()
+    instances = TopicScopeElement.objects.filter(workflow_state_id=session_id).all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
@@ -133,9 +179,8 @@ def create_topic_keyword_by_session(session_id: UUID, keyword_text: str, keyword
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    initial_data = get_refined_topic_instance(session_id)
     new_keyword = TopicKeyword.objects.create(
-        initiation_data=initial_data,
+        workflow_state_id=session_id,
         text=keyword_text,
         status='USER_DRAFT'
     )
@@ -150,7 +195,7 @@ def get_topic_keyword_by_session(session_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    instances = TopicKeyword.objects.filter(initiation_data_id=session_id).all()
+    instances = TopicKeyword.objects.filter(workflow_state_id=session_id).all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
@@ -159,7 +204,7 @@ def update_topic_keyword_by_id(keyword_id: UUID, keyword_text: str, keyword_stat
         raise ValueError("serializer_class must be provided")
 
     keyword_instance = TopicKeyword.objects.select_related(
-        'initiation_data'
+        'workflow_state'
     ).get(
         id=keyword_id
     )
@@ -170,7 +215,7 @@ def update_topic_keyword_by_id(keyword_id: UUID, keyword_text: str, keyword_stat
 
     keyword_instance.save()
 
-    instances = TopicKeyword.objects.filter(initiation_data=keyword_instance.initiation_data).all()
+    instances = TopicKeyword.objects.filter(workflow_state=keyword_instance.workflow_state).all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
