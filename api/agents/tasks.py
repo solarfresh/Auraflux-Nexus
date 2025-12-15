@@ -90,17 +90,16 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
     except Exception:
         cache.delete(lock_key)
 
-    current_research_question = tr_agent_output_json.get('current_research_question')
     topic_stability_updated_payload = {
         "session_id": session_id,
         'user_id': user_id,
         "new_stability_score": tr_agent_output_json.get('new_stability_score'),
         'is_topic_too_niche': tr_agent_output_json.get('is_topic_too_niche'),
-        'current_research_question': '' if current_research_question is None else current_research_question,
+        'current_research_question': tr_agent_output_json.get('current_research_question', None),
         'refined_keywords_to_lock': tr_agent_output_json.get('refined_keywords_to_lock'),
         'refined_scope_to_lock': tr_agent_output_json.get('refined_scope_to_lock'),
         'updated_summary': sum_agent_output_json.get('updated_summary', ''),
-        'last_chat_sequence_number': chat_history[-1]['sequence_number']
+        'last_chat_sequence_number': payload.get('last_chat_sequence_number')
     }
 
     # Publish event to update the sidebar/DB (Topic Stability Data)
@@ -230,6 +229,7 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         'locked_scope_elements_list': payload.get('locked_scope_elements_list'),
         'conversation_summary_of_old_history': payload.get('conversation_summary_of_old_history'),
         'recent_turns_of_chat_history': recent_turns_of_chat_history,
+        'last_chat_sequence_number': current_chat_history_length + 2,
         'latest_user_input': user_message
     }
 

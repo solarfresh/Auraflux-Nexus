@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 from uuid import UUID
 
 from django.contrib.auth import get_user_model
@@ -41,6 +41,17 @@ def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tupl
         # initiation_data = InitiationPhaseData.objects.select_for_update().get(workflow_state=workflow_state)
 
         return workflow_state, initiation_data
+
+def patch_initiation_phase_data(session_id: UUID, data: Dict, serializer_class = None):
+    if serializer_class is None:
+        raise ValueError("serializer_class must be provided")
+
+    instance = InitiationPhaseData.objects.get(workflow_state__session_id=session_id)
+    serializer = serializer_class(instance, data=data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+
+    raise serializer.errors
 
 def get_refined_topic_instance(session_id: UUID):
     initiation_instance = InitiationPhaseData.objects.select_related(
