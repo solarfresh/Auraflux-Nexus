@@ -120,7 +120,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
             "message": "Topic refinement data updated.",
             'stability_score': initiation_data.stability_score,
             'feasibility_status': initiation_data.feasibility_status,
-            'final_research_question': initiation_data.conversation_summary,
+            'final_research_question': initiation_data.final_research_question,
             'keywords': TopicKeywordSerializer(refined_keywords_instance, many=True).data,
             'scope':TopicScopeElementSerializer(refined_scope_elements_instance, many=True).data,
             'resource_suggestion': get_resource_suggestion(initiation_data.feasibility_status)
