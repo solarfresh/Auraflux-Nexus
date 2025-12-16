@@ -2,95 +2,42 @@ import logging
 
 from adrf.views import APIView
 from asgiref.sync import sync_to_async
+from core.constants import ISPStep
 from core.utils import get_serialized_data
-from django.contrib.auth import get_user_model
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
+from knowledge.models import TopicKeyword, TopicScopeElement
+from knowledge.serializers.initiation import RefinedTopicSerializer
 from messaging.constants import InitiationEAStreamRequest
 from messaging.tasks import publish_event
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from workflows.models import (ChatHistoryEntry, InitiationPhaseData,
+                              ResearchWorkflowState, TopicKeyword,
+                              TopicScopeElement)
+from workflows.serializers import (ChatEntryHistorySerializer,
+                                   RefinedTopicSerializer,
+                                   TopicKeywordSerializer,
+                                   TopicScopeElementSerializer,
+                                   WorkflowChatInputRequestSerializer,
+                                   WorkflowChatInputResponseSerializer)
+from workflows.utils import (atomic_read_and_lock_initiation_data,
+                             create_topic_keyword_by_session,
+                             create_topic_scope_element_by_session,
+                             get_refined_topic_instance,
+                             get_topic_keyword_by_session,
+                             get_topic_scope_element_by_session,
+                             update_topic_keyword_by_id,
+                             update_topic_scope_element_by_id)
 
-from .models import (ChatHistoryEntry, InitiationPhaseData, KuhlthauStage,
-                     ReflectionLog, ResearchWorkflowState, TopicKeyword,
-                     TopicScopeElement)
-from .serializers import (ChatEntryHistorySerializer, RefinedTopicSerializer,
-                          ReflectionLogSerializer, TopicKeywordSerializer,
-                          TopicScopeElementSerializer,
-                          WorkflowChatInputRequestSerializer,
-                          WorkflowChatInputResponseSerializer)
-from .utils import (atomic_read_and_lock_initiation_data,
-                    create_reflection_log_by_session,
-                    create_topic_keyword_by_session,
-                    create_topic_scope_element_by_session,
-                    get_refined_topic_instance, get_reflection_log_by_session,
-                    get_topic_keyword_by_session,
-                    get_topic_scope_element_by_session,
-                    update_reflection_log_by_id, update_topic_keyword_by_id,
-                    update_topic_scope_element_by_id)
+from .base import WorkflowBaseView
 
-User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
-class ChatHistoryEntryView(APIView):
-
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="Retrieve Chat History for Workflow Session",
-        description=(
-            "Fetches the complete chat history associated with a specific workflow session identified by session_id."
-        ),
-        parameters=[
-            OpenApiParameter(
-                name="session_id",
-                location=OpenApiParameter.PATH,
-                description="Unique identifier for the workflow session.",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ],
-        request=ChatEntryHistorySerializer,
-        responses={
-            200: ChatEntryHistorySerializer,
-            400: OpenApiTypes.OBJECT,
-            403: OpenApiTypes.OBJECT,
-            404: OpenApiTypes.OBJECT,
-            500: OpenApiTypes.OBJECT,
-        },
-        examples=[
-            OpenApiExample(
-                'Successful Persistence',
-                value={
-                    "id": 1,
-                    "role": "user",
-                    "content": "Hello, how can I assist you?",
-                    "name": "Explorer Agent",
-                    "sequence_number": 1,
-                    "timestamp": "2024-01-01T12:00:00Z"
-                },
-                response_only=True,
-                status_codes=['200']
-            ),
-            OpenApiExample(
-                'Invalid Data',
-                value={"error": "Invalid input data."},
-                response_only=True,
-                status_codes=['400']
-            ),
-        ]
-    )
-    async def get(self, request, session_id):
-        data = await get_serialized_data({'workflow_state_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
-        return Response(data, status=status.HTTP_200_OK)
-
-
-class RefinedTopicView(APIView):
-
-    permission_classes = [IsAuthenticated]
+class RefinedTopicView(WorkflowBaseView):
 
     @extend_schema(
         summary="Retrieve Initiation Phase Sidebar Data",
@@ -130,100 +77,7 @@ class RefinedTopicView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class SessionReflectionLogView(APIView):
-
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="Retrieve Reflection Log for Workflow Session",
-        description=(
-            "Fetches the list of Reflection Logs associated with a specific workflow session identified by session_id."
-        ),
-        parameters=[
-            OpenApiParameter(
-                name="session_id",
-                location=OpenApiParameter.PATH,
-                description="Unique identifier for the workflow session.",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ],
-        responses={
-            200: ReflectionLogSerializer,
-            404: OpenApiTypes.OBJECT,
-            500: OpenApiTypes.OBJECT,
-        }
-    )
-    async def get(self, request, session_id):
-        try:
-            data = await sync_to_async(get_reflection_log_by_session)(session_id, serializer_class=ReflectionLogSerializer)
-        except ReflectionLog.DoesNotExist:
-            return Response({"detail": f"Reflection logs not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
-
-        return Response(data, status=status.HTTP_200_OK)
-
-    @extend_schema(
-        summary="Add a New Reflection Log",
-        description=(
-            "Adds a new Reflection Log associated with the specified workflow session."
-        ),
-        parameters=[
-            OpenApiParameter(
-                name="session_id",
-                location=OpenApiParameter.PATH,
-                description="Unique identifier for the workflow session.",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ],
-        request=ReflectionLogSerializer,
-        responses={
-            201: ReflectionLogSerializer,
-            400: OpenApiTypes.OBJECT,
-            404: OpenApiTypes.OBJECT,
-            500: OpenApiTypes.OBJECT,
-        }
-    )
-    async def post(self, request, session_id):
-        reflection_log_title = request.data.get('title')
-        reflection_log_content = request.data.get('content')
-        reflection_log_status = request.data.get('status', None)
-        if not reflection_log_title:
-            return Response(
-                {"detail": "title is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if not reflection_log_content:
-            return Response(
-                {"detail": "content is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            data = await sync_to_async(create_reflection_log_by_session)(
-                session_id,
-                reflection_log_title,
-                reflection_log_content,
-                reflection_log_status,
-                serializer_class=ReflectionLogSerializer)
-        except ResearchWorkflowState.DoesNotExist:
-            return Response(
-                {"detail": f"Research workflow state not found for session {session_id}."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        except ReflectionLog.DoesNotExist:
-            return Response(
-                {"detail": f"Failed to create reflection log for session {session_id}."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        return Response(data, status=status.HTTP_201_CREATED)
-
-
-class SessionTopicKeywordView(APIView):
-
-    permission_classes = [IsAuthenticated]
+class SessionTopicKeywordView(WorkflowBaseView):
 
     @extend_schema(
         summary="Retrieve Topic Keywords for Workflow Session",
@@ -300,9 +154,7 @@ class SessionTopicKeywordView(APIView):
         return Response(data, status=status.HTTP_201_CREATED)
 
 
-class SessionTopicScopeElementView(APIView):
-
-    permission_classes = [IsAuthenticated]
+class SessionTopicScopeElementView(WorkflowBaseView):
 
     @extend_schema(
         summary="Retrieve Topic Scope Elements for Workflow Session",
@@ -384,64 +236,6 @@ class SessionTopicScopeElementView(APIView):
             )
 
         return Response(data, status=status.HTTP_201_CREATED)
-
-
-class ReflectionLogView(APIView):
-
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="Update an Existing Reflection Log",
-        description=(
-            "Updates the text and status of an existing Reflection Log identified by log_id."
-        ),
-        parameters=[
-            OpenApiParameter(
-                name="log_id",
-                location=OpenApiParameter.PATH,
-                description="Unique identifier for the topic keyword.",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ],
-        request=ReflectionLogSerializer,
-        responses={
-            200: ReflectionLogSerializer,
-            400: OpenApiTypes.OBJECT,
-            404: OpenApiTypes.OBJECT,
-            500: OpenApiTypes.OBJECT,
-        }
-    )
-    async def put(self, request, log_id):
-        reflection_log_title = request.data.get('title')
-        reflection_log_content = request.data.get('content')
-        reflection_log_status = request.data.get('status', None)
-        if not reflection_log_title:
-            return Response(
-                {"detail": "title is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if not reflection_log_content:
-            return Response(
-                {"detail": "content is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            data = await sync_to_async(update_reflection_log_by_id)(
-                log_id,
-                reflection_log_title,
-                reflection_log_content,
-                reflection_log_status,
-                serializer_class=ReflectionLogSerializer)
-        except ReflectionLog.DoesNotExist:
-            return Response(
-                {"detail": f"Reflection Log '{log_id}' not found."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        return Response(data, status=status.HTTP_200_OK)
 
 
 class TopicKeywordView(APIView):
@@ -543,13 +337,11 @@ class TopicScopeElementView(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
-class WorkflowChatInputView(APIView):
+class WorkflowChatInputView(WorkflowBaseView):
     """
     Handles POST requests for chat input within a specific workflow session.
     Routes the input to the corresponding agent handler based on current_stage.
     """
-
-    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         summary="Submit Chat Input for Workflow Session",
@@ -613,10 +405,10 @@ class WorkflowChatInputView(APIView):
             logger.error(f"DB lock or retrieval error: {e}")
             return Response({"error": "Database access error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        if workflow_state.current_stage != KuhlthauStage.TOPIC_DEFINITION_LOCKIN:
+        if workflow_state.current_stage != ISPStep.TOPIC_DEFINITION:
             error_msg = (
                 f"Operation not allowed. Current stage is '{workflow_state.current_stage}', "
-                f"expected '{KuhlthauStage.TOPIC_DEFINITION_LOCKIN}' for this chat endpoint."
+                f"expected '{ISPStep.TOPIC_DEFINITION}' for this chat endpoint."
             )
             return Response({"error": error_msg}, status=status.HTTP_409_CONFLICT)
 
