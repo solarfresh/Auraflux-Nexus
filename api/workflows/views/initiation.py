@@ -1,6 +1,5 @@
 import logging
 
-from adrf.views import APIView
 from asgiref.sync import sync_to_async
 from core.constants import ISPStep
 from core.utils import get_serialized_data
@@ -8,19 +7,16 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
 from knowledge.models import TopicKeyword, TopicScopeElement
-from knowledge.serializers.initiation import RefinedTopicSerializer
+from knowledge.serializers import (ProcessedKeywordSerializer,
+                                   ProcessedScopeSerializer)
 from messaging.constants import InitiationEAStreamRequest
 from messaging.tasks import publish_event
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from workflows.models import (ChatHistoryEntry, InitiationPhaseData,
-                              ResearchWorkflowState, TopicKeyword,
-                              TopicScopeElement)
+                              ResearchWorkflow)
 from workflows.serializers import (ChatEntryHistorySerializer,
                                    RefinedTopicSerializer,
-                                   TopicKeywordSerializer,
-                                   TopicScopeElementSerializer,
                                    WorkflowChatInputRequestSerializer,
                                    WorkflowChatInputResponseSerializer)
 from workflows.utils import (atomic_read_and_lock_initiation_data,
@@ -28,9 +24,7 @@ from workflows.utils import (atomic_read_and_lock_initiation_data,
                              create_topic_scope_element_by_session,
                              get_refined_topic_instance,
                              get_topic_keyword_by_session,
-                             get_topic_scope_element_by_session,
-                             update_topic_keyword_by_id,
-                             update_topic_scope_element_by_id)
+                             get_topic_scope_element_by_session)
 
 from .base import WorkflowBaseView
 
@@ -94,14 +88,14 @@ class SessionTopicKeywordView(WorkflowBaseView):
             )
         ],
         responses={
-            200: TopicKeywordSerializer,
+            200: ProcessedKeywordSerializer,
             404: OpenApiTypes.OBJECT,
             500: OpenApiTypes.OBJECT,
         }
     )
     async def get(self, request, session_id):
         try:
-            data = await sync_to_async(get_topic_keyword_by_session)(session_id, serializer_class=TopicKeywordSerializer)
+            data = await sync_to_async(get_topic_keyword_by_session)(session_id, serializer_class=ProcessedKeywordSerializer)
         except TopicKeyword.DoesNotExist:
             return Response({"detail": f"Topic keywords not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -121,9 +115,9 @@ class SessionTopicKeywordView(WorkflowBaseView):
                 type=OpenApiTypes.UUID,
             )
         ],
-        request=TopicKeywordSerializer,
+        request=ProcessedKeywordSerializer,
         responses={
-            201: TopicKeywordSerializer,
+            201: ProcessedKeywordSerializer,
             400: OpenApiTypes.OBJECT,
             404: OpenApiTypes.OBJECT,
             500: OpenApiTypes.OBJECT,
@@ -139,8 +133,8 @@ class SessionTopicKeywordView(WorkflowBaseView):
             )
 
         try:
-            data = await sync_to_async(create_topic_keyword_by_session)(session_id, keyword_text, keyword_status, serializer_class=TopicKeywordSerializer)
-        except ResearchWorkflowState.DoesNotExist:
+            data = await sync_to_async(create_topic_keyword_by_session)(session_id, keyword_text, keyword_status, serializer_class=ProcessedKeywordSerializer)
+        except ResearchWorkflow.DoesNotExist:
             return Response(
                 {"detail": f"Research workflow state not found for session {session_id}."},
                 status=status.HTTP_404_NOT_FOUND
@@ -171,14 +165,14 @@ class SessionTopicScopeElementView(WorkflowBaseView):
             )
         ],
         responses={
-            200: TopicScopeElementSerializer,
+            200: ProcessedScopeSerializer,
             404: OpenApiTypes.OBJECT,
             500: OpenApiTypes.OBJECT,
         }
     )
     async def get(self, request, session_id):
         try:
-            data = await sync_to_async(get_topic_scope_element_by_session)(session_id, serializer_class=TopicScopeElementSerializer)
+            data = await sync_to_async(get_topic_scope_element_by_session)(session_id, serializer_class=ProcessedScopeSerializer)
         except TopicScopeElement.DoesNotExist:
             return Response({"detail": f"Topic scope elements not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -198,9 +192,9 @@ class SessionTopicScopeElementView(WorkflowBaseView):
                 type=OpenApiTypes.UUID,
             )
         ],
-        request=TopicScopeElementSerializer,
+        request=ProcessedScopeSerializer,
         responses={
-            201: TopicScopeElementSerializer,
+            201: ProcessedScopeSerializer,
             400: OpenApiTypes.OBJECT,
             404: OpenApiTypes.OBJECT,
             500: OpenApiTypes.OBJECT,
@@ -223,8 +217,8 @@ class SessionTopicScopeElementView(WorkflowBaseView):
             )
 
         try:
-            data = await sync_to_async(create_topic_scope_element_by_session)(session_id, scope_value, scope_label, scope_status, serializer_class=TopicScopeElementSerializer)
-        except ResearchWorkflowState.DoesNotExist:
+            data = await sync_to_async(create_topic_scope_element_by_session)(session_id, scope_value, scope_label, scope_status, serializer_class=ProcessedScopeSerializer)
+        except ResearchWorkflow.DoesNotExist:
             return Response(
                 {"detail": f"Research workflow state not found for session {session_id}."},
                 status=status.HTTP_404_NOT_FOUND
@@ -236,105 +230,6 @@ class SessionTopicScopeElementView(WorkflowBaseView):
             )
 
         return Response(data, status=status.HTTP_201_CREATED)
-
-
-class TopicKeywordView(APIView):
-
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="Update an Existing Topic Keyword",
-        description=(
-            "Updates the text and status of an existing Topic Keyword identified by keyword_id."
-        ),
-        parameters=[
-            OpenApiParameter(
-                name="keyword_id",
-                location=OpenApiParameter.PATH,
-                description="Unique identifier for the topic keyword.",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ],
-        request=TopicKeywordSerializer,
-        responses={
-            200: TopicKeywordSerializer,
-            400: OpenApiTypes.OBJECT,
-            404: OpenApiTypes.OBJECT,
-            500: OpenApiTypes.OBJECT,
-        }
-    )
-    async def put(self, request, keyword_id):
-        keyword_text = request.data.get('text')
-        keyword_status = request.data.get('status', None)
-        if not keyword_text:
-            return Response(
-                {"detail": "text is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            data = await sync_to_async(update_topic_keyword_by_id)(keyword_id, keyword_text, keyword_status, serializer_class=TopicKeywordSerializer)
-        except TopicKeyword.DoesNotExist:
-            return Response(
-                {"detail": f"Keyword '{keyword_id}' not found."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        return Response(data, status=status.HTTP_200_OK)
-
-
-class TopicScopeElementView(APIView):
-
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="Update an Existing Topic Scope Element",
-        description=(
-            "Updates the text and status of an existing Topic Scope Element identified by scope_id."
-        ),
-        parameters=[
-            OpenApiParameter(
-                name="scope_id",
-                location=OpenApiParameter.PATH,
-                description="Unique identifier for the topic scope element.",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ],
-        request=TopicScopeElementSerializer,
-        responses={
-            200: TopicScopeElementSerializer,
-            400: OpenApiTypes.OBJECT,
-            404: OpenApiTypes.OBJECT,
-            500: OpenApiTypes.OBJECT,
-        }
-    )
-    async def put(self, request, scope_id):
-        scope_label = request.data.get('label')
-        scope_value = request.data.get('value')
-        scope_status = request.data.get('status', None)
-        if not scope_label:
-            return Response(
-                {"detail": "label is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if not scope_value:
-            return Response(
-                {"detail": "value is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            data = await sync_to_async(update_topic_scope_element_by_id)(scope_id, scope_value, scope_label, scope_status, serializer_class=TopicScopeElementSerializer)
-        except TopicScopeElement.DoesNotExist:
-            return Response(
-                {"detail": f"Scope Element '{scope_id}' not found."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        return Response(data, status=status.HTTP_200_OK)
 
 
 class WorkflowChatInputView(WorkflowBaseView):
@@ -397,7 +292,7 @@ class WorkflowChatInputView(WorkflowBaseView):
                 session_id=session_id,
                 user_id=user.id
             )
-        except ResearchWorkflowState.DoesNotExist:
+        except ResearchWorkflow.DoesNotExist:
             return Response({"error": "Workflow session not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
         except PermissionError as e:
             return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
@@ -418,8 +313,8 @@ class WorkflowChatInputView(WorkflowBaseView):
             "user_message": user_message,
             "ea_agent_role_name": ea_agent_role_name,
             "final_question_draft": phase_data.final_research_question,
-            "locked_keywords_list": await get_serialized_data({'initiation_data_id': session_id, 'status': 'LOCKED'}, TopicKeyword, TopicKeywordSerializer, many=True),
-            "locked_scope_elements_list": await get_serialized_data({'initiation_data_id': session_id, 'status': 'LOCKED'}, TopicScopeElement, TopicScopeElementSerializer, many=True),
+            "locked_keywords_list": await get_serialized_data({'initiation_data_id': session_id, 'status': 'LOCKED'}, TopicKeyword, ProcessedKeywordSerializer, many=True),
+            "locked_scope_elements_list": await get_serialized_data({'initiation_data_id': session_id, 'status': 'LOCKED'}, TopicScopeElement, ProcessedScopeSerializer, many=True),
             "discarded_elements_list": [],
             "conversation_summary_of_old_history": phase_data.conversation_summary,
             'last_analysis_sequence_number': phase_data.last_analysis_sequence_number,

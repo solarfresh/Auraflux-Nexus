@@ -10,7 +10,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from workflows.models import (ChatHistoryEntry, ReflectionLog,
-                              ResearchWorkflowState)
+                              ResearchWorkflow)
 from workflows.serializers import (ChatEntryHistorySerializer,
                                    ReflectionLogSerializer)
 from workflows.utils import (create_reflection_log_by_session,
@@ -154,7 +154,7 @@ class SessionReflectionLogView(WorkflowBaseView):
                 reflection_log_content,
                 reflection_log_status,
                 serializer_class=ReflectionLogSerializer)
-        except ResearchWorkflowState.DoesNotExist:
+        except ResearchWorkflow.DoesNotExist:
             return Response(
                 {"detail": f"Research workflow state not found for session {session_id}."},
                 status=status.HTTP_404_NOT_FOUND

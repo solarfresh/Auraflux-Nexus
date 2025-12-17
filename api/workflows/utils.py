@@ -4,16 +4,15 @@ from uuid import UUID
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-
-from .models import (InitiationPhaseData, ReflectionLog, ResearchWorkflowState,
-                     TopicKeyword, TopicScopeElement)
+from knowledge.models import TopicKeyword, TopicScopeElement
+from .models import (InitiationPhaseData, ReflectionLog, ResearchWorkflow)
 
 if TYPE_CHECKING:
     from users.models import User
 else:
     User = get_user_model()
 
-def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tuple[ResearchWorkflowState, InitiationPhaseData]:
+def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tuple[ResearchWorkflow, InitiationPhaseData]:
     """
     Executes a single atomic transaction to lock the state and load the initiation data.
     This is the function called by the WorkflowChatInputView.
@@ -23,8 +22,8 @@ def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tupl
     with transaction.atomic():
         # Retrieve and LOCK the main state
         # Note: Must use select_for_update() for locking
-        workflow_state = get_object_or_404(
-            ResearchWorkflowState.objects.select_for_update(),
+        workflow = get_object_or_404(
+            ResearchWorkflow.objects.select_for_update(),
             session_id=session_id,
             user_id=user_id
         )
@@ -35,18 +34,18 @@ def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tupl
         # but select_for_update() is safer if the instance exists.
 
         # We call the synchronous helper function *within* the atomic block
-        initiation_data = get_or_create_initiation_data(workflow_state)
+        initiation_data = get_or_create_initiation_data(workflow)
 
         # Manually lock the data instance if necessary (complex locking is usually done via raw query or dedicated manager)
-        # initiation_data = InitiationPhaseData.objects.select_for_update().get(workflow_state=workflow_state)
+        # initiation_data = InitiationPhaseData.objects.select_for_update().get(workflow=workflow)
 
-        return workflow_state, initiation_data
+        return workflow, initiation_data
 
 def patch_initiation_phase_data(session_id: UUID, data: Dict, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    instance = InitiationPhaseData.objects.get(workflow_state__session_id=session_id)
+    instance = InitiationPhaseData.objects.get(workflow__session_id=session_id)
     serializer = serializer_class(instance, data=data, partial=True)
     if serializer.is_valid():
         serializer.save()
@@ -55,21 +54,18 @@ def patch_initiation_phase_data(session_id: UUID, data: Dict, serializer_class =
 
 def get_refined_topic_instance(session_id: UUID):
     initiation_instance = InitiationPhaseData.objects.select_related(
-        'workflow_state',
-    ).prefetch_related(
-        'keywords_list',
-        'scope_elements_list'
+        'workflow',
     ).get(
-        workflow_state__session_id=session_id
+        workflow__session_id=session_id
     )
 
     return initiation_instance
 
-def create_workflow_state(session_id: UUID, user_id: int, initial_stage: str) -> ResearchWorkflowState:
+def create_workflow(session_id: UUID, user_id: int, initial_stage: str) -> ResearchWorkflow:
     """
-    Creates a new ResearchWorkflowState instance.
+    Creates a new ResearchEntityStatus instance.
     """
-    return ResearchWorkflowState.objects.create(
+    return ResearchWorkflow.objects.create(
         session_id=session_id,
         user_id=user_id,
         current_stage=initial_stage
@@ -97,7 +93,7 @@ def create_reflection_log_by_session(session_id: UUID, reflection_log_title: str
         raise ValueError("serializer_class must be provided")
 
     new_log = ReflectionLog.objects.create(
-        workflow_state_id=session_id,
+        object_id=session_id,
         title=reflection_log_title,
         content=reflection_log_content,
         status='DRAFT'
@@ -115,7 +111,7 @@ def update_reflection_log_by_id(log_id: UUID, reflection_log_title: str, reflect
         raise ValueError("serializer_class must be provided")
 
     log_instance = ReflectionLog.objects.select_related(
-        'workflow_state'
+        'workflow'
     ).get(
         id=log_id
     )
@@ -127,7 +123,7 @@ def update_reflection_log_by_id(log_id: UUID, reflection_log_title: str, reflect
 
     log_instance.save()
 
-    instances = ReflectionLog.objects.filter(workflow_state=log_instance.workflow_state).all()
+    instances = ReflectionLog.objects.filter(workflow=log_instance.workflow).all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
@@ -135,7 +131,7 @@ def get_reflection_log_by_session(session_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    instances = ReflectionLog.objects.filter(workflow_state_id=session_id).all()
+    instances = ReflectionLog.objects.filter(object_id=session_id).all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
@@ -144,7 +140,7 @@ def create_topic_scope_element_by_session(session_id: UUID, scope_label: str, sc
         raise ValueError("serializer_class must be provided")
 
     new_scope = TopicScopeElement.objects.create(
-        workflow_state_id=session_id,
+        object_id=session_id,
         scope_label=scope_label,
         scope_value=scope_value,
         scope_status='USER_DRAFT'
@@ -157,32 +153,11 @@ def create_topic_scope_element_by_session(session_id: UUID, scope_label: str, sc
 
     return get_topic_scope_element_by_session(session_id, serializer_class)
 
-def update_topic_scope_element_by_id(scope_id: UUID, scope_label: str, scope_value: str, scope_status: str | None = None, serializer_class = None):
-    if serializer_class is None:
-        raise ValueError("serializer_class must be provided")
-
-    scope_instance = TopicScopeElement.objects.select_related(
-        'workflow_state'
-    ).get(
-        id=scope_id
-    )
-
-    scope_instance.label = scope_label
-    scope_instance.value = scope_value
-    if scope_status is not None:
-        scope_instance.status = scope_status
-
-    scope_instance.save()
-
-    instances = TopicScopeElement.objects.filter(workflow_state=scope_instance.workflow_state).all()
-    serializer = serializer_class(instances, many=True)
-    return serializer.data
-
 def get_topic_scope_element_by_session(session_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    instances = TopicScopeElement.objects.filter(workflow_state_id=session_id).all()
+    instances = TopicScopeElement.objects.filter(object_id=session_id).all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
@@ -191,7 +166,7 @@ def create_topic_keyword_by_session(session_id: UUID, keyword_text: str, keyword
         raise ValueError("serializer_class must be provided")
 
     new_keyword = TopicKeyword.objects.create(
-        workflow_state_id=session_id,
+        object_id=session_id,
         text=keyword_text,
         status='USER_DRAFT'
     )
@@ -206,42 +181,22 @@ def get_topic_keyword_by_session(session_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    instances = TopicKeyword.objects.filter(workflow_state_id=session_id).all()
+    instances = TopicKeyword.objects.filter(object_id=session_id).all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def update_topic_keyword_by_id(keyword_id: UUID, keyword_text: str, keyword_status: str | None = None, serializer_class = None):
-    if serializer_class is None:
-        raise ValueError("serializer_class must be provided")
-
-    keyword_instance = TopicKeyword.objects.select_related(
-        'workflow_state'
-    ).get(
-        id=keyword_id
-    )
-
-    keyword_instance.text = keyword_text
-    if keyword_status is not None:
-        keyword_instance.status = keyword_status
-
-    keyword_instance.save()
-
-    instances = TopicKeyword.objects.filter(workflow_state=keyword_instance.workflow_state).all()
-    serializer = serializer_class(instances, many=True)
-    return serializer.data
-
-def get_workflow_state(session_id: UUID, user_id: int) -> ResearchWorkflowState:
+def get_workflow_state(session_id: UUID, user_id: int) -> ResearchWorkflow:
     """
-    Retrieves an existing ResearchWorkflowState instance.
+    Retrieves an existing ResearchEntityStatus instance.
     If not found, it raises a DoesNotExist exception (for 404 handling in the View).
     """
     # Note: Use get_object_or_404 in the View or handle the DoesNotExist here.
-    return ResearchWorkflowState.objects.get(
+    return ResearchWorkflow.objects.get(
         session_id=session_id,
         user_id=user_id
     )
 
-def get_or_create_initiation_data(workflow_state: ResearchWorkflowState) -> InitiationPhaseData:
+def get_or_create_initiation_data(workflow: ResearchWorkflow) -> InitiationPhaseData:
     """
     Retrieves or creates the InitiationPhaseData linked to the workflow state.
     Handles phase-specific default value initialization.
@@ -252,7 +207,7 @@ def get_or_create_initiation_data(workflow_state: ResearchWorkflowState) -> Init
     """
     # Using get_or_create to safely handle the OneToOne relationship
     initiation_data, created = InitiationPhaseData.objects.get_or_create(
-        workflow_state=workflow_state,
+        workflow=workflow,
         defaults={
             'stability_score': 0.0,
             'final_research_question': '',

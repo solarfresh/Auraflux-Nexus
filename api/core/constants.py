@@ -22,7 +22,7 @@ class ParticipantRole(models.TextChoices):
     AI_AGENT = 'ai-agent', _('AI Agent')
 
 
-class WorkflowState(models.TextChoices):
+class EntityStatus(models.TextChoices):
     """
     Workflow state tokens used for consistent styling and
     logic across different node types and UI components.

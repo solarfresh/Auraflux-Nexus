@@ -1,5 +1,7 @@
-from core.constants import ResourceFormat, ResourceSource, WorkflowState
+from core.constants import ResourceFormat, ResourceSource, EntityStatus
 from core.models import BaseModel
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -13,6 +15,15 @@ class TopicKeyword(BaseModel):
         max_length=255,
         help_text="The text content of the keyword."
     )
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        help_text="The model type of the owner (Workflows, Resources, etc.)"
+    )
+    object_id = models.UUIDField(
+        help_text="The UUID of the specific owner instance."
+    )
+    owner = GenericForeignKey('content_type', 'object_id')
     importance_weight = models.FloatField(
         default=0.5,
         validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
@@ -30,9 +41,23 @@ class TopicKeyword(BaseModel):
     )
     status = models.CharField(
         max_length=20,
-        choices=WorkflowState.choices,
-        default=WorkflowState.AI_EXTRACTED
+        choices=EntityStatus.choices,
+        default=EntityStatus.AI_EXTRACTED
     )
+
+    class Meta:
+        verbose_name = "Topic Keyword"
+        verbose_name_plural = "Topic Keywords"
+        indexes = [
+            models.Index(fields=["content_type", "object_id"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['object_id', 'label'],
+                name='unique_keyword_per_session'
+            )
+        ]
+        ordering = ['-updated_at']
 
     def __str__(self):
         return f"{self.label} ({self.status})"
@@ -51,6 +76,15 @@ class TopicScopeElement(BaseModel):
         max_length=255,
         help_text="The aspect of the scope (e.g., 'Timeframe', 'Geography')."
     )
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        help_text="The model type of the owner (Workflows, Resources, etc.)"
+    )
+    object_id = models.UUIDField(
+        help_text="The UUID of the specific owner instance."
+    )
+    owner = GenericForeignKey('content_type', 'object_id')
     boundary_type = models.CharField(
         max_length=20,
         choices=BoundaryType.choices,
@@ -61,9 +95,23 @@ class TopicScopeElement(BaseModel):
     )
     status = models.CharField(
         max_length=20,
-        choices=WorkflowState.choices,
-        default=WorkflowState.AI_EXTRACTED
+        choices=EntityStatus.choices,
+        default=EntityStatus.AI_EXTRACTED
     )
+
+    class Meta:
+        verbose_name = "Topic Scope Element"
+        verbose_name_plural = "Topic Scope Elements"
+        indexes = [
+            models.Index(fields=["content_type", "object_id"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['object_id', 'label', 'rationale'],
+                name='unique_scope_element_per_session'
+            )
+        ]
+        ordering = ['-updated_at']
 
     def __str__(self):
         return f"[{self.boundary_type}] {self.label}"

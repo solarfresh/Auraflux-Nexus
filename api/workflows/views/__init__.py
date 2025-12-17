@@ -9,8 +9,6 @@ from .base import (ChatHistoryEntryView, ReflectionLogView,
                    SessionReflectionLogView)
 # # Initiation Stage Views
 # # Specifically for Topic Definition & Lock-in
-from .initiation import TopicKeywordView  # For direct updates to keywords
-from .initiation import TopicScopeElementView  # For direct updates to scope
 from .initiation import (RefinedTopicView, SessionTopicKeywordView,
                          SessionTopicScopeElementView, WorkflowChatInputView)
 

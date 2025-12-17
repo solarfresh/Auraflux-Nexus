@@ -1,5 +1,5 @@
-from adrf.serializers import ModelSerializer, Serializer
-from core.constants import WorkflowState
+from adrf.serializers import ModelSerializer
+from core.constants import EntityStatus
 from knowledge.models import TopicKeyword, TopicScopeElement
 from rest_framework import serializers
 
@@ -9,7 +9,7 @@ class ProcessedKeywordSerializer(ModelSerializer):
     Maps TopicKeyword to the ProcessedKeyword frontend interface.
     Renames 'status' to 'workflowState' and ensures camelCase.
     """
-    workflowState = serializers.ChoiceField(choices=WorkflowState.choices, source='status')
+    workflowState = serializers.ChoiceField(choices=EntityStatus.choices, source='status')
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
 
@@ -32,7 +32,7 @@ class ProcessedScopeSerializer(ModelSerializer):
     Maps TopicScopeElement to the ProcessedScope frontend interface.
     Ensures 'rationale' and 'boundary_type' match frontend expectations.
     """
-    workflowState = serializers.ChoiceField(choices=WorkflowState.choices, source='status')
+    workflowState = serializers.ChoiceField(choices=EntityStatus.choices, source='status')
     boundaryType = serializers.CharField(source='boundary_type')
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
@@ -48,18 +48,3 @@ class ProcessedScopeSerializer(ModelSerializer):
             'createdAt',
             'updatedAt'
         ]
-
-
-class RefinedTopicSerializer(Serializer):
-    """
-    A composite serializer representing the full response after topic refinement.
-    Matches the 'APIRefinedTopic' TypeScript interface.
-    """
-    stabilityScore = serializers.FloatField()
-    feasibilityStatus = serializers.CharField()
-    finalResearchQuestion = serializers.CharField()
-    keywords = ProcessedKeywordSerializer(many=True)
-    scope = ProcessedScopeSerializer(many=True)
-    resourceSuggestion = serializers.CharField(allow_null=True, required=False)
-
-    # Note: This is a read-only data transfer object (DTO) used by the Service Layer

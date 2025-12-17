@@ -8,7 +8,7 @@ from realtime.constants import INITIATION_REFINED_TOPIC
 from realtime.utils import send_ws_notification
 
 from .models import (ChatHistoryEntry, InitiationPhaseData,
-                     ResearchWorkflowState, TopicKeyword, TopicScopeElement)
+                     ResearchEntityStatus, TopicKeyword, TopicScopeElement)
 from .serializers import TopicKeywordSerializer, TopicScopeElementSerializer
 from .utils import determine_feasibility_status, get_resource_suggestion
 
@@ -38,7 +38,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
 
     try:
         # Fetch the InitiationPhaseData instance linked to the session
-        # NOTE: This requires fetching ResearchWorkflowState first to get the PK link
+        # NOTE: This requires fetching ResearchEntityStatus first to get the PK link
         initiation_data = InitiationPhaseData.objects.select_related(
             'workflow_state'
         ).prefetch_related(
@@ -137,7 +137,7 @@ def persist_chat_entry(event_type: str, payload: dict):
     to the ChatHistoryEntry database table.
 
     Args:
-        session_id: The UUID of the ResearchWorkflowState to link the message to.
+        session_id: The UUID of the ResearchEntityStatus to link the message to.
         role: The sender's role ('user' or 'system').
         content: The text content of the message.
         name: The specific sender name (e.g., 'Explorer Agent').
@@ -154,16 +154,16 @@ def persist_chat_entry(event_type: str, payload: dict):
     sequence_number = payload.get('sequence_number')
 
     try:
-        # Look up the ResearchWorkflowState instance
+        # Look up the ResearchEntityStatus instance
         # Retrieve the workflow state using the provided session_id UUID.
-        workflow_state = ResearchWorkflowState.objects.get(session_id=uuid.UUID(session_id))
-    except ResearchWorkflowState.DoesNotExist:
+        workflow_state = ResearchEntityStatus.objects.get(session_id=uuid.UUID(session_id))
+    except ResearchEntityStatus.DoesNotExist:
         # If the workflow state is not found, log an error and stop the task without retrying.
-        logger.error(f"WorkflowState with ID {session_id} not found. Aborting chat persistence.")
+        logger.error(f"EntityStatus with ID {session_id} not found. Aborting chat persistence.")
         return False
     except Exception as e:
         # Handle other retrieval errors and initiate a retry mechanism.
-        logger.warning(f"Error fetching WorkflowState {session_id} before persisting chat: {e}. Retrying in 60s.")
+        logger.warning(f"Error fetching EntityStatus {session_id} before persisting chat: {e}. Retrying in 60s.")
         # Retry the task after 60 seconds
         raise task.retry(exc=e, countdown=60)
 
