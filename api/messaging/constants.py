@@ -12,6 +12,15 @@ class TopicRefinementAgentRequest:
     queue = Queue.DEFAULT
 
 
+class TopicKeywordsUpdated:
+    name = 'update_topic_keywords'
+    queue = Queue.DEFAULT
+
+
+class TopicScopeElementsUpdated:
+    name = 'update_topic_scope_elements'
+    queue = Queue.DEFAULT
+
 class TopicStabilityUpdated:
     name = 'update_topic_stability_data'
     queue = Queue.DEFAULT

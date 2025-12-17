@@ -51,7 +51,7 @@ class ResearchWorkflow(models.Model):
     current_stage = models.CharField(
         max_length=50,
         choices=ISPStep.choices,
-        default=ISPStep.TOPIC_DEFINITION,
+        default=ISPStep.DEFINITION,
         help_text="Current ISP phase (DEFINITION, EXPLORATION, etc.)."
     )
 

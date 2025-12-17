@@ -92,8 +92,12 @@ def create_reflection_log_by_session(session_id: UUID, reflection_log_title: str
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    new_log = ReflectionLog.objects.create(
-        object_id=session_id,
+    try:
+        workflow = ResearchWorkflow.objects.get(session_id=session_id)
+    except ResearchWorkflow.DoesNotExist:
+        return
+
+    new_log = ReflectionLog(
         title=reflection_log_title,
         content=reflection_log_content,
         status='DRAFT'
@@ -102,7 +106,7 @@ def create_reflection_log_by_session(session_id: UUID, reflection_log_title: str
     if reflection_log_status is not None:
         new_log.status = reflection_log_status
 
-    new_log.save()
+    workflow.reflection_logs.add(new_log, bulk=False)
 
     return get_reflection_log_by_session(session_id, serializer_class)
 

@@ -8,7 +8,7 @@ from realtime.constants import INITIATION_REFINED_TOPIC
 from realtime.utils import send_ws_notification
 
 from .models import (ChatHistoryEntry, InitiationPhaseData,
-                     ResearchEntityStatus, TopicKeyword, TopicScopeElement)
+                     ResearchWorkflow, TopicKeyword, TopicScopeElement)
 from .serializers import TopicKeywordSerializer, TopicScopeElementSerializer
 from .utils import determine_feasibility_status, get_resource_suggestion
 
@@ -38,14 +38,11 @@ def update_topic_stability_data(event_type: str, payload: dict):
 
     try:
         # Fetch the InitiationPhaseData instance linked to the session
-        # NOTE: This requires fetching ResearchEntityStatus first to get the PK link
+        # NOTE: This requires fetching ResearchWorkflow first to get the PK link
         initiation_data = InitiationPhaseData.objects.select_related(
-            'workflow_state'
-        ).prefetch_related(
-            'keywords_list',
-            'scope_elements_list'
+            'workflow'
         ).get(
-            workflow_state__session_id=session_id
+            workflow__session_id=session_id
         )
     except InitiationPhaseData.DoesNotExist:
         logger.error("Task %s: InitiationPhaseData not found for session %s. Aborting.", task_id, session_id)
@@ -96,7 +93,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
     for keyword_text in refined_keywords:
         TopicKeyword.objects.update_or_create(
             initiation_data=initiation_data,
-            workflow_state=initiation_data.workflow_state,
+            workflow=initiation_data.workflow,
             text=keyword_text,
             defaults={'status': 'AI_EXTRACTED'}
         )
@@ -105,7 +102,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
     for element in refined_scope_elements:
         TopicScopeElement.objects.update_or_create(
             initiation_data=initiation_data,
-            workflow_state=initiation_data.workflow_state,
+            workflow=initiation_data.workflow,
             label=element.get('label'),
             value=element.get('value'),
             defaults={'status': 'AI_EXTRACTED'}
@@ -137,7 +134,7 @@ def persist_chat_entry(event_type: str, payload: dict):
     to the ChatHistoryEntry database table.
 
     Args:
-        session_id: The UUID of the ResearchEntityStatus to link the message to.
+        session_id: The UUID of the ResearchWorkflow to link the message to.
         role: The sender's role ('user' or 'system').
         content: The text content of the message.
         name: The specific sender name (e.g., 'Explorer Agent').
@@ -154,10 +151,10 @@ def persist_chat_entry(event_type: str, payload: dict):
     sequence_number = payload.get('sequence_number')
 
     try:
-        # Look up the ResearchEntityStatus instance
+        # Look up the ResearchWorkflow instance
         # Retrieve the workflow state using the provided session_id UUID.
-        workflow_state = ResearchEntityStatus.objects.get(session_id=uuid.UUID(session_id))
-    except ResearchEntityStatus.DoesNotExist:
+        workflow_state = ResearchWorkflow.objects.get(session_id=uuid.UUID(session_id))
+    except ResearchWorkflow.DoesNotExist:
         # If the workflow state is not found, log an error and stop the task without retrying.
         logger.error(f"EntityStatus with ID {session_id} not found. Aborting chat persistence.")
         return False

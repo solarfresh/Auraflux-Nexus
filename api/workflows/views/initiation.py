@@ -300,10 +300,10 @@ class WorkflowChatInputView(WorkflowBaseView):
             logger.error(f"DB lock or retrieval error: {e}")
             return Response({"error": "Database access error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        if workflow_state.current_stage != ISPStep.TOPIC_DEFINITION:
+        if workflow_state.current_stage != ISPStep.DEFINITION:
             error_msg = (
                 f"Operation not allowed. Current stage is '{workflow_state.current_stage}', "
-                f"expected '{ISPStep.TOPIC_DEFINITION}' for this chat endpoint."
+                f"expected '{ISPStep.DEFINITION}' for this chat endpoint."
             )
             return Response({"error": error_msg}, status=status.HTTP_409_CONFLICT)
 

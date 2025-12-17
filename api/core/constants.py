@@ -39,7 +39,7 @@ class ISPStep(models.TextChoices):
     Information Search Process (ISP) Phases.
     Maps to the global workflow progress tracking.
     """
-    TOPIC_DEFINITION = 'TOPIC_DEFINITION_LOCKIN', _('Topic Definition & Lock-in')
+    DEFINITION = 'DEFINITION', _('Definition')
     EXPLORATION = 'EXPLORATION', _('Exploration')
     FORMULATION = 'FORMULATION', _('Formulation')
     COLLECTION = 'COLLECTION', _('Collection')
