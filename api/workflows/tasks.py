@@ -1,5 +1,6 @@
 import logging
 import uuid
+from types import SimpleNamespace
 
 from core.celery_app import celery_app
 from django.db import transaction
@@ -8,8 +9,8 @@ from realtime.constants import INITIATION_REFINED_TOPIC
 from realtime.utils import send_ws_notification
 
 from .models import (ChatHistoryEntry, InitiationPhaseData,
-                     ResearchWorkflowState, TopicKeyword, TopicScopeElement)
-from .serializers import TopicKeywordSerializer, TopicScopeElementSerializer
+                     ResearchWorkflow)
+from .serializers import RefinedTopicSerializer
 from .utils import determine_feasibility_status, get_resource_suggestion
 
 logger = logging.getLogger(__name__)
@@ -38,14 +39,11 @@ def update_topic_stability_data(event_type: str, payload: dict):
 
     try:
         # Fetch the InitiationPhaseData instance linked to the session
-        # NOTE: This requires fetching ResearchWorkflowState first to get the PK link
+        # NOTE: This requires fetching ResearchWorkflow first to get the PK link
         initiation_data = InitiationPhaseData.objects.select_related(
-            'workflow_state'
-        ).prefetch_related(
-            'keywords_list',
-            'scope_elements_list'
+            'workflow'
         ).get(
-            workflow_state__session_id=session_id
+            workflow_id=session_id
         )
     except InitiationPhaseData.DoesNotExist:
         logger.error("Task %s: InitiationPhaseData not found for session %s. Aborting.", task_id, session_id)
@@ -93,38 +91,59 @@ def update_topic_stability_data(event_type: str, payload: dict):
         'updated_at'])
 
     refined_keywords = payload.get('refined_keywords_to_lock', [])
-    for keyword_text in refined_keywords:
-        TopicKeyword.objects.update_or_create(
-            initiation_data=initiation_data,
-            workflow_state=initiation_data.workflow_state,
-            text=keyword_text,
-            defaults={'status': 'AI_EXTRACTED'}
-        )
+    keywords = initiation_data.workflow.keywords.all()
+    keyword_set = set([keyword.label for keyword in keywords])
+    TopicKeyword = initiation_data.workflow.keywords.model
+    new_keywords = []
+    for keyword_label in refined_keywords:
+        if keyword_label in keyword_set:
+            continue
 
+        new_keywords.append(TopicKeyword(
+            label=keyword_label,
+            status='AI_EXTRACTED'
+        ))
+
+    if new_keywords:
+        initiation_data.workflow.keywords.add(*new_keywords, bulk=False)
+
+    scope_elements = initiation_data.workflow.scope_elements.all()
+    scope_element_set = set([(scope_element.label, scope_element.rationale) for scope_element in scope_elements])
+    TopicScopeElement = initiation_data.workflow.keywords.model
+    new_scope_elements = []
     refined_scope_elements = payload.get('refined_scope_to_lock', [])
     for element in refined_scope_elements:
-        TopicScopeElement.objects.update_or_create(
-            initiation_data=initiation_data,
-            workflow_state=initiation_data.workflow_state,
-            label=element.get('label'),
-            value=element.get('value'),
-            defaults={'status': 'AI_EXTRACTED'}
-        )
+        scope_label = element.get('label')
+        scope_rationale=element.get('rationale')
+        if (scope_label, scope_rationale) in scope_element_set:
+            continue
 
-    refined_keywords_instance = TopicKeyword.objects.filter(initiation_data=initiation_data).all()
-    refined_scope_elements_instance = TopicScopeElement.objects.filter(initiation_data=initiation_data).all()
+        new_scope_elements.append(TopicScopeElement(
+            label=scope_label,
+            rationale=scope_rationale,
+            status='AI_EXTRACTED'
+        ))
+
+    if new_scope_elements:
+        initiation_data.workflow.scope_elements.add(*new_scope_elements, bulk=False)
+
+    refined_topic = SimpleNamespace(
+            stability_score=initiation_data.stability_score,
+            feasibility_status=initiation_data.feasibility_status,
+            final_research_question=initiation_data.final_research_question,
+            keywords=initiation_data.workflow.keywords.all(),
+            scope_elements=initiation_data.workflow.scope_elements.all(),
+            resource_suggestion=get_resource_suggestion(initiation_data.feasibility_status)
+    )
+
+    refined_topic_payload = {
+        "message": "Topic refinement data updated.",
+    }
+    refined_topic_payload.update(RefinedTopicSerializer(refined_topic).data)
     send_ws_notification(
         user_id=user_id,
         event_type=INITIATION_REFINED_TOPIC,
-        payload={
-            "message": "Topic refinement data updated.",
-            'stability_score': initiation_data.stability_score,
-            'feasibility_status': initiation_data.feasibility_status,
-            'final_research_question': initiation_data.final_research_question,
-            'keywords': TopicKeywordSerializer(refined_keywords_instance, many=True).data,
-            'scope':TopicScopeElementSerializer(refined_scope_elements_instance, many=True).data,
-            'resource_suggestion': get_resource_suggestion(initiation_data.feasibility_status)
-        }
+        payload=refined_topic_payload
     )
 
     logger.info("Task %s: Database update complete for session %s.", task_id, session_id)
@@ -137,7 +156,7 @@ def persist_chat_entry(event_type: str, payload: dict):
     to the ChatHistoryEntry database table.
 
     Args:
-        session_id: The UUID of the ResearchWorkflowState to link the message to.
+        session_id: The UUID of the ResearchWorkflow to link the message to.
         role: The sender's role ('user' or 'system').
         content: The text content of the message.
         name: The specific sender name (e.g., 'Explorer Agent').
@@ -154,16 +173,16 @@ def persist_chat_entry(event_type: str, payload: dict):
     sequence_number = payload.get('sequence_number')
 
     try:
-        # Look up the ResearchWorkflowState instance
+        # Look up the ResearchWorkflow instance
         # Retrieve the workflow state using the provided session_id UUID.
-        workflow_state = ResearchWorkflowState.objects.get(session_id=uuid.UUID(session_id))
-    except ResearchWorkflowState.DoesNotExist:
+        workflow = ResearchWorkflow.objects.get(session_id=uuid.UUID(session_id))
+    except ResearchWorkflow.DoesNotExist:
         # If the workflow state is not found, log an error and stop the task without retrying.
-        logger.error(f"WorkflowState with ID {session_id} not found. Aborting chat persistence.")
+        logger.error(f"EntityStatus with ID {session_id} not found. Aborting chat persistence.")
         return False
     except Exception as e:
         # Handle other retrieval errors and initiate a retry mechanism.
-        logger.warning(f"Error fetching WorkflowState {session_id} before persisting chat: {e}. Retrying in 60s.")
+        logger.warning(f"Error fetching EntityStatus {session_id} before persisting chat: {e}. Retrying in 60s.")
         # Retry the task after 60 seconds
         raise task.retry(exc=e, countdown=60)
 
@@ -171,7 +190,7 @@ def persist_chat_entry(event_type: str, payload: dict):
         # Create and save the ChatHistoryEntry instance within an atomic transaction
         with transaction.atomic():
             ChatHistoryEntry.objects.create(
-                workflow_state=workflow_state,
+                workflow=workflow,
                 role=role,
                 content=content,
                 name=name,

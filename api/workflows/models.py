@@ -1,58 +1,45 @@
 import uuid
 
+from core.constants import ISPStep
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.fields import (GenericForeignKey,
+                                                GenericRelation)
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 # Use the default Django User model for association
 User = get_user_model()
 
 
-class KuhlthauStage(models.TextChoices):
-    # [DB Value] = [Constant Name], [Human Readable Label]
-    TOPIC_DEFINITION_LOCKIN = 'INITIATION', '1. Topic Definition & Lock-in (Uncertainty → Optimism)'
-    EXPLORATION = 'EXPLORATION', '2. Exploration (Confusion/Doubt)'
-    FORMULATION = 'FORMULATION', '3. Formulation (Clarity)'
-    COLLECTION = 'COLLECTION', '4. Collection (Satisfaction)'
-    PRESENTATION = 'PRESENTATION', '5. Presentation (Closure)'
-
-    @classmethod
-    def get_emotional_state(cls, stage):
-        if stage == cls.TOPIC_DEFINITION_LOCKIN:
-            return 'Uncertainty'
-        return 'N/A'
-
-
-class ResearchWorkflowState(models.Model):
+class ResearchWorkflow(models.Model):
     """
     Core State Data Structure for managing a user's research workflow,
     tracking Kuhlthau phases, agent outputs, and cost control variables.
     """
 
-    # Define choices for the Kuhlthau ISP stages
-    KUHLTHAU_STAGES = (
-        # Merges original INITIATION (1) and SELECTION (2).
-        # This phase handles the entire process from vague concept to locked research question,
-        # guided by the Stability Score.
-        ('TOPIC_DEFINITION_LOCKIN', '1. Topic Definition & Lock-in (Uncertainty → Optimism)'),
-
-        # Corresponds to original ISP stage 3. Focus on sifting information and evaluation.
-        ('EXPLORATION', '2. Exploration (Confusion/Doubt)'),
-
-        # Corresponds to original ISP stage 4. Focus on synthesizing information into arguments.
-        ('FORMULATION', '3. Formulation (Clarity)'),
-
-        # Corresponds to original ISP stage 5. Focus on precise evidence gathering.
-        ('COLLECTION', '4. Collection (Confidence)'),
-
-        # Corresponds to original ISP stage 6. Focus on finalizing and outputting the report.
-        ('PRESENTATION', '5. Presentation (Satisfaction/Closure)'),
-    )
-
-    # --- Identification Fields ---    # --- Identification & Linkage Fields ---
+    # --- Identification Fields ---
     session_id = models.UUIDField(
         primary_key=True,
         editable=False,
         help_text="Unique identifier for the current research workflow session."
+    )
+    keywords = GenericRelation(
+        "knowledge.TopicKeyword",
+        content_type_field='content_type',
+        object_id_field='object_id',
+        related_query_name='workflow'
+    )
+    scope_elements = GenericRelation(
+        'knowledge.TopicScopeElement',
+        content_type_field='content_type',
+        object_id_field='object_id',
+        related_query_name='workflow'
+    )
+    reflection_logs = GenericRelation(
+        'workflows.ReflectionLog',
+        content_type_field='content_type',
+        object_id_field='object_id',
+        related_query_name='workflow'
     )
     user = models.ForeignKey(
         User,
@@ -63,9 +50,9 @@ class ResearchWorkflowState(models.Model):
     # --- Universal Status & Control ---
     current_stage = models.CharField(
         max_length=50,
-        choices=KuhlthauStage.choices,
-        default=KuhlthauStage.TOPIC_DEFINITION_LOCKIN,
-        help_text="Current Kuhlthau phase (INITIATION, SELECTION, etc.)."
+        choices=ISPStep.choices,
+        default=ISPStep.DEFINITION,
+        help_text="Current ISP phase (DEFINITION, EXPLORATION, etc.)."
     )
 
     is_active = models.BooleanField(
@@ -107,8 +94,8 @@ class ChatHistoryEntry(models.Model):
     )
 
     # --- Linkage to Workflow ---
-    workflow_state = models.ForeignKey(
-        ResearchWorkflowState,
+    workflow = models.ForeignKey(
+        ResearchWorkflow,
         on_delete=models.CASCADE,
         related_name='chat_history_entries',
         help_text="Foreign key linking the message to the parent research workflow session."
@@ -170,12 +157,15 @@ class ReflectionLog(models.Model):
         help_text="Unique identifier for the reflection entry."
     )
 
-    workflow_state = models.ForeignKey(
-        ResearchWorkflowState,
+    content_type = models.ForeignKey(
+        ContentType,
         on_delete=models.CASCADE,
-        related_name='reflection_log_entries',
-        help_text="Foreign key linking the reflection logs to the parent research workflow session."
+        help_text="The model type of the owner (Workflows, Resources, etc.)"
     )
+    object_id = models.UUIDField(
+        help_text="The UUID of the specific owner instance."
+    )
+    owner = GenericForeignKey('content_type', 'object_id')
 
     title = models.CharField(
         max_length=255,
@@ -223,12 +213,12 @@ class InitiationPhaseData(models.Model):
     """
 
     # --- Linkage ---
-    workflow_state = models.OneToOneField(
-        'ResearchWorkflowState', # Use string reference if ResearchWorkflowState is defined later
+    workflow = models.OneToOneField(
+        'ResearchWorkflow', # Use string reference if ResearchWorkflow is defined later
         on_delete=models.CASCADE,
         primary_key=True,
         related_name='initiation_data',
-        help_text="One-to-one link to the parent ResearchWorkflowState (Control Model)."
+        help_text="One-to-one link to the parent ResearchWorkflow (Control Model)."
     )
 
     # --- AGENT STRUCTURED OUTPUTS (Core Sidebar Data) ---
@@ -265,150 +255,8 @@ class InitiationPhaseData(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Initiation Data for Session: {self.workflow_state.session_id}"
+        return f"Initiation Data for Session: {self.workflow.session_id}"
 
     class Meta:
         verbose_name = "Initiation Phase Data"
         verbose_name_plural = "Initiation Phase Data"
-
-
-class TopicKeyword(models.Model):
-    """
-    Stores individual keywords related to the topic for the Initiation Phase.
-    """
-
-    KEYWORD_STATUS_CHOICES = [
-        ('LOCKED', 'Locked (Committed and Finalized)'),
-        ('USER_DRAFT', 'User Draft (Created by User, Pending Review)'),
-        ('AI_EXTRACTED', 'AI Extracted (Captured from Chat, Needs Review)'),
-        ('ON_HOLD', 'On Hold (Excluded from Current Topic)'),
-    ]
-
-    id = models.UUIDField(
-        primary_key=True,
-        editable=False,
-        default=uuid.uuid4,
-        help_text="Unique identifier for the keyword entry."
-    )
-
-    initiation_data = models.ForeignKey(
-        InitiationPhaseData,
-        on_delete=models.CASCADE,
-        related_name='keywords_list',
-        help_text="Foreign key linking the keyword to the parent initial phase data session."
-    )
-
-    workflow_state = models.ForeignKey(
-        ResearchWorkflowState,
-        on_delete=models.CASCADE,
-        related_name='keywords_list',
-        help_text="Foreign key linking the keyword to the parent research workflow session."
-    )
-
-    text = models.CharField(
-        max_length=255,
-        help_text="The keyword or key phrase itself."
-    )
-
-    status = models.CharField(
-        max_length=20,
-        choices=KEYWORD_STATUS_CHOICES,
-        default='USER_DRAFT',
-        help_text="The current status of the keyword (LOCKED, DRAFT, DISCARDED)."
-    )
-
-    confidence_score = models.FloatField(
-        default=0.0,
-        help_text="Agent-assigned confidence score for this keyword extraction."
-    )
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "Topic Keyword"
-        verbose_name_plural = "Topic Keywords"
-        indexes = [
-            models.Index(fields=['workflow_state', 'status']),
-        ]
-        constraints = [
-            models.UniqueConstraint(
-                fields=['workflow_state', 'text'],
-                name='unique_keyword_per_session'
-            )
-        ]
-        ordering = ['-updated_at']
-
-    def __str__(self):
-        return f"[{self.status}] {self.text} for Session {self.workflow_state.session_id}"
-
-
-class TopicScopeElement(models.Model):
-    """
-    Stores individual scope elements (Timeframe, Geography, Population, etc.) for the Initiation Phase.
-    """
-
-    SCOPE_STATUS_CHOICES = [
-        ('LOCKED', 'Locked (Committed and Finalized)'),
-        ('USER_DRAFT', 'User Draft (Created by User, Pending Review)'),
-        ('AI_EXTRACTED', 'AI Extracted (Captured by Agent, Needs Review)'),
-        ('ON_HOLD', 'On Hold (Excluded from Current Topic)'),
-    ]
-
-    id = models.UUIDField(
-        primary_key=True,
-        editable=False,
-        default=uuid.uuid4,
-        help_text="Unique identifier for the scope element entry."
-    )
-
-    initiation_data = models.ForeignKey(
-        InitiationPhaseData,
-        on_delete=models.CASCADE,
-        related_name='scope_elements_list',
-        help_text="Foreign key linking the scope to the parent initial phase data session."
-    )
-
-    workflow_state = models.ForeignKey(
-        ResearchWorkflowState,
-        on_delete=models.CASCADE,
-        related_name='scope_elements_list',
-        help_text="Foreign key linking the scope element to the parent research workflow session."
-    )
-
-    label = models.CharField(
-        max_length=100,
-        help_text="The category of the scope element (e.g., 'Timeframe', 'Geographical Focus')."
-    )
-
-    value = models.CharField(
-        max_length=255,
-        help_text="The specific defined value (e.g., '2020-2023', 'Southeast Asia')."
-    )
-
-    status = models.CharField(
-        max_length=20,
-        choices=SCOPE_STATUS_CHOICES,
-        default='USER_DRAFT',
-        help_text="The current status of the scope element (LOCKED, DRAFT, DISCARDED)."
-    )
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "Topic Scope Element"
-        verbose_name_plural = "Topic Scope Elements"
-        indexes = [
-            models.Index(fields=['workflow_state', 'label', 'status']),
-        ]
-        constraints = [
-            models.UniqueConstraint(
-                fields=['workflow_state', 'label', 'value'],
-                name='unique_scope_element_per_session'
-            )
-        ]
-        ordering = ['-updated_at']
-
-    def __str__(self):
-        return f"[{self.status}] {self.label}: {self.value} for Session {self.workflow_state.session_id}"
