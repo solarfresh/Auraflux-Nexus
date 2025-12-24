@@ -1,12 +1,12 @@
 import logging
 
 from asgiref.sync import sync_to_async
+from django.db.models import Model
 from core.constants import ISPStep
 from core.utils import get_serialized_data
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
-from knowledge.models import TopicKeyword, TopicScopeElement
 from knowledge.serializers import (ProcessedKeywordSerializer,
                                    ProcessedScopeSerializer)
 from messaging.constants import InitiationEAStreamRequest
@@ -96,7 +96,7 @@ class SessionTopicKeywordView(WorkflowBaseView):
     async def get(self, request, session_id):
         try:
             data = await sync_to_async(get_topic_keyword_by_session)(session_id, serializer_class=ProcessedKeywordSerializer)
-        except TopicKeyword.DoesNotExist:
+        except Model.DoesNotExist:
             return Response({"detail": f"Topic keywords not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
 
         return Response(data, status=status.HTTP_200_OK)
@@ -139,7 +139,7 @@ class SessionTopicKeywordView(WorkflowBaseView):
                 {"detail": f"Research workflow state not found for session {session_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
-        except TopicKeyword.DoesNotExist:
+        except Model.DoesNotExist:
             return Response(
                 {"detail": f"Failed to create keyword for session {session_id}."},
                 status=status.HTTP_404_NOT_FOUND
@@ -173,7 +173,7 @@ class SessionTopicScopeElementView(WorkflowBaseView):
     async def get(self, request, session_id):
         try:
             data = await sync_to_async(get_topic_scope_element_by_session)(session_id, serializer_class=ProcessedScopeSerializer)
-        except TopicScopeElement.DoesNotExist:
+        except Model.DoesNotExist:
             return Response({"detail": f"Topic scope elements not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
 
         return Response(data, status=status.HTTP_200_OK)
@@ -223,7 +223,7 @@ class SessionTopicScopeElementView(WorkflowBaseView):
                 {"detail": f"Research workflow state not found for session {session_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
-        except TopicScopeElement.DoesNotExist:
+        except Model.DoesNotExist:
             return Response(
                 {"detail": f"Failed to create scope for session {session_id}."},
                 status=status.HTTP_404_NOT_FOUND
@@ -288,7 +288,7 @@ class WorkflowChatInputView(WorkflowBaseView):
         # State Locking and Initial Check (Ensure Atomicity)
         try:
             # Atomic read and lock (runs in a sync thread via @sync_to_async)
-            workflow_state, phase_data = await sync_to_async(atomic_read_and_lock_initiation_data)(
+            workflow, phase_data = await sync_to_async(atomic_read_and_lock_initiation_data)(
                 session_id=session_id,
                 user_id=user.id
             )
@@ -300,12 +300,15 @@ class WorkflowChatInputView(WorkflowBaseView):
             logger.error(f"DB lock or retrieval error: {e}")
             return Response({"error": "Database access error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        if workflow_state.current_stage != ISPStep.DEFINITION:
+        if workflow.current_stage != ISPStep.DEFINITION:
             error_msg = (
-                f"Operation not allowed. Current stage is '{workflow_state.current_stage}', "
+                f"Operation not allowed. Current stage is '{workflow.current_stage}', "
                 f"expected '{ISPStep.DEFINITION}' for this chat endpoint."
             )
             return Response({"error": error_msg}, status=status.HTTP_409_CONFLICT)
+
+        TopicKeyword = workflow.keywords.model
+        TopicScopeElement = workflow.scope_elements.model
 
         event_payload = {
             "session_id": str(session_id),
@@ -313,12 +316,12 @@ class WorkflowChatInputView(WorkflowBaseView):
             "user_message": user_message,
             "ea_agent_role_name": ea_agent_role_name,
             "final_question_draft": phase_data.final_research_question,
-            "locked_keywords_list": await get_serialized_data({'initiation_data_id': session_id, 'status': 'LOCKED'}, TopicKeyword, ProcessedKeywordSerializer, many=True),
-            "locked_scope_elements_list": await get_serialized_data({'initiation_data_id': session_id, 'status': 'LOCKED'}, TopicScopeElement, ProcessedScopeSerializer, many=True),
+            "locked_keywords_list": await sync_to_async(get_serialized_data)({'workflow_id': session_id, 'status': 'LOCKED'}, TopicKeyword, ProcessedKeywordSerializer, many=True),
+            "locked_scope_elements_list": await sync_to_async(get_serialized_data)({'workflow_id': session_id, 'status': 'LOCKED'}, TopicScopeElement, ProcessedScopeSerializer, many=True),
             "discarded_elements_list": [],
             "conversation_summary_of_old_history": phase_data.conversation_summary,
             'last_analysis_sequence_number': phase_data.last_analysis_sequence_number,
-            "current_chat_history": await get_serialized_data({'workflow_state_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
+            "current_chat_history": await sync_to_async(get_serialized_data)({'workflow_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
         }
 
         publish_event.delay(

@@ -75,7 +75,7 @@ class ChatHistoryEntryView(WorkflowBaseView):
         ]
     )
     async def get(self, request, session_id):
-        data = await get_serialized_data({'workflow_state_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
+        data = await sync_to_async(get_serialized_data)({'workflow_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
         return Response(data, status=status.HTTP_200_OK)
 
 

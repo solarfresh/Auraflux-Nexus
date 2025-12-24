@@ -1,4 +1,5 @@
 from uuid import UUID
+
 from .models import TopicKeyword, TopicScopeElement
 
 
@@ -7,7 +8,7 @@ def update_topic_scope_element_by_id(scope_id: UUID, scope_label: str, scope_rat
         raise ValueError("serializer_class must be provided")
 
     scope_instance = TopicScopeElement.objects.select_related(
-        'workflows'
+        'workflow'
     ).get(
         id=scope_id
     )
@@ -19,7 +20,7 @@ def update_topic_scope_element_by_id(scope_id: UUID, scope_label: str, scope_rat
 
     scope_instance.save()
 
-    instances = TopicScopeElement.objects.filter(workflows=scope_instance.workflow).all()
+    instances = scope_instance.objects.filter(object_id=scope_instance.object_id).all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
@@ -28,7 +29,7 @@ def update_topic_keyword_by_id(keyword_id: UUID, keyword_label: str, keyword_sta
         raise ValueError("serializer_class must be provided")
 
     keyword_instance = TopicKeyword.objects.select_related(
-        'workflows'
+        'workflow'
     ).get(
         id=keyword_id
     )
@@ -39,6 +40,6 @@ def update_topic_keyword_by_id(keyword_id: UUID, keyword_label: str, keyword_sta
 
     keyword_instance.save()
 
-    instances = TopicKeyword.objects.filter(workflows=keyword_instance.workflow).all()
+    instances = keyword_instance.objects.filter(object_id=keyword_instance.object_id).all()
     serializer = serializer_class(instances, many=True)
     return serializer.data

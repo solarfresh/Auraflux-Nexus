@@ -4,7 +4,6 @@ from uuid import UUID
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from knowledge.models import TopicKeyword, TopicScopeElement
 from .models import (InitiationPhaseData, ReflectionLog, ResearchWorkflow)
 
 if TYPE_CHECKING:
@@ -97,6 +96,7 @@ def create_reflection_log_by_session(session_id: UUID, reflection_log_title: str
     except ResearchWorkflow.DoesNotExist:
         return
 
+    ReflectionLog = workflow.reflection_logs.model
     new_log = ReflectionLog(
         title=reflection_log_title,
         content=reflection_log_content,
@@ -107,8 +107,9 @@ def create_reflection_log_by_session(session_id: UUID, reflection_log_title: str
         new_log.status = reflection_log_status
 
     workflow.reflection_logs.add(new_log, bulk=False)
-
-    return get_reflection_log_by_session(session_id, serializer_class)
+    instances = workflow.reflection_logs.all()
+    serializer = serializer_class(instances, many=True)
+    return serializer.data
 
 def update_reflection_log_by_id(log_id: UUID, reflection_log_title: str, reflection_log_content: str, reflection_log_status: str | None = None, serializer_class = None):
     if serializer_class is None:
@@ -127,7 +128,7 @@ def update_reflection_log_by_id(log_id: UUID, reflection_log_title: str, reflect
 
     log_instance.save()
 
-    instances = ReflectionLog.objects.filter(workflow=log_instance.workflow).all()
+    instances = log_instance.objects.filter(object_id=log_instance.object_id).all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
@@ -135,19 +136,29 @@ def get_reflection_log_by_session(session_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    instances = ReflectionLog.objects.filter(object_id=session_id).all()
+    try:
+        workflow = ResearchWorkflow.objects.get(session_id=session_id)
+    except ResearchWorkflow.DoesNotExist:
+        return
+
+    instances = workflow.reflection_logs.all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def create_topic_scope_element_by_session(session_id: UUID, scope_label: str, scope_value: str, scope_status: str | None = None, serializer_class = None):
+def create_topic_scope_element_by_session(session_id: UUID, scope_label: str, scope_rationale: str, scope_status: str | None = None, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    new_scope = TopicScopeElement.objects.create(
-        object_id=session_id,
-        scope_label=scope_label,
-        scope_value=scope_value,
-        scope_status='USER_DRAFT'
+    try:
+        workflow = ResearchWorkflow.objects.get(session_id=session_id)
+    except ResearchWorkflow.DoesNotExist:
+        return
+
+    TopicScopeElement = workflow.scope_elements.model
+    new_scope = TopicScopeElement(
+        label=scope_label,
+        rationale=scope_rationale,
+        status='USER_DRAFT'
     )
 
     if scope_status is not None:
@@ -155,41 +166,60 @@ def create_topic_scope_element_by_session(session_id: UUID, scope_label: str, sc
 
     new_scope.save()
 
-    return get_topic_scope_element_by_session(session_id, serializer_class)
+    instances = workflow.scope_elements.all()
+    serializer = serializer_class(instances, many=True)
+    return serializer.data
 
 def get_topic_scope_element_by_session(session_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    instances = TopicScopeElement.objects.filter(object_id=session_id).all()
+    try:
+        workflow = ResearchWorkflow.objects.get(session_id=session_id)
+    except ResearchWorkflow.DoesNotExist:
+        return
+
+    instances = workflow.scope_elements.all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def create_topic_keyword_by_session(session_id: UUID, keyword_text: str, keyword_status: str | None = None, serializer_class = None):
+def create_topic_keyword_by_session(session_id: UUID, keyword_label: str, keyword_status: str | None = None, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    new_keyword = TopicKeyword.objects.create(
-        object_id=session_id,
-        text=keyword_text,
+    try:
+        workflow = ResearchWorkflow.objects.get(session_id=session_id)
+    except ResearchWorkflow.DoesNotExist:
+        return
+
+    TopicKeyword = workflow.keywords.model
+    new_keyword = TopicKeyword(
+        label=keyword_label,
         status='USER_DRAFT'
     )
     if keyword_status is not None:
         new_keyword.status = keyword_status
 
-    new_keyword.save()
+    workflow.keywords.add(new_keyword, bulk=False)
 
-    return get_topic_keyword_by_session(session_id, serializer_class)
+    instances = workflow.keywords.all()
+    serializer = serializer_class(instances, many=True)
+    return serializer.data
 
 def get_topic_keyword_by_session(session_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    instances = TopicKeyword.objects.filter(object_id=session_id).all()
+    try:
+        workflow = ResearchWorkflow.objects.get(session_id=session_id)
+    except ResearchWorkflow.DoesNotExist:
+        return
+
+    instances = workflow.keywords.all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def get_workflow_state(session_id: UUID, user_id: int) -> ResearchWorkflow:
+def get_workflow(session_id: UUID, user_id: int) -> ResearchWorkflow:
     """
     Retrieves an existing ResearchEntityStatus instance.
     If not found, it raises a DoesNotExist exception (for 404 handling in the View).

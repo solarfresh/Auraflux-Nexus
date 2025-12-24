@@ -1,5 +1,6 @@
 import logging
 import uuid
+from types import SimpleNamespace
 
 from core.celery_app import celery_app
 from django.db import transaction
@@ -8,8 +9,8 @@ from realtime.constants import INITIATION_REFINED_TOPIC
 from realtime.utils import send_ws_notification
 
 from .models import (ChatHistoryEntry, InitiationPhaseData,
-                     ResearchWorkflow, TopicKeyword, TopicScopeElement)
-from .serializers import TopicKeywordSerializer, TopicScopeElementSerializer
+                     ResearchWorkflow)
+from .serializers import RefinedTopicSerializer
 from .utils import determine_feasibility_status, get_resource_suggestion
 
 logger = logging.getLogger(__name__)
@@ -90,38 +91,59 @@ def update_topic_stability_data(event_type: str, payload: dict):
         'updated_at'])
 
     refined_keywords = payload.get('refined_keywords_to_lock', [])
-    for keyword_text in refined_keywords:
-        TopicKeyword.objects.update_or_create(
-            initiation_data=initiation_data,
-            workflow=initiation_data.workflow,
-            text=keyword_text,
-            defaults={'status': 'AI_EXTRACTED'}
-        )
+    keywords = initiation_data.workflow.keywords.all()
+    keyword_set = set([keyword.label for keyword in keywords])
+    TopicKeyword = initiation_data.workflow.keywords.model
+    new_keywords = []
+    for keyword_label in refined_keywords:
+        if keyword_label in keyword_set:
+            continue
 
+        new_keywords.append(TopicKeyword(
+            label=keyword_label,
+            status='AI_EXTRACTED'
+        ))
+
+    if new_keywords:
+        initiation_data.workflow.keywords.add(new_keywords)
+
+    scope_elements = initiation_data.workflow.scope_elements.all()
+    scope_element_set = set([(scope_element.label, scope_element.rationale) for scope_element in scope_elements])
+    TopicScopeElement = initiation_data.workflow.keywords.model
+    new_scope_elements = []
     refined_scope_elements = payload.get('refined_scope_to_lock', [])
     for element in refined_scope_elements:
-        TopicScopeElement.objects.update_or_create(
-            initiation_data=initiation_data,
-            workflow=initiation_data.workflow,
-            label=element.get('label'),
-            value=element.get('value'),
-            defaults={'status': 'AI_EXTRACTED'}
-        )
+        scope_label = element.get('label')
+        scope_rationale=element.get('rationale')
+        if (scope_label, scope_rationale) in scope_element_set:
+            continue
 
-    refined_keywords_instance = TopicKeyword.objects.filter(initiation_data=initiation_data).all()
-    refined_scope_elements_instance = TopicScopeElement.objects.filter(initiation_data=initiation_data).all()
+        new_scope_elements.append(TopicScopeElement(
+            label=scope_label,
+            rationale=scope_rationale,
+            status='AI_EXTRACTED'
+        ))
+
+    if new_scope_elements:
+        initiation_data.workflow.scope_elements.add(new_scope_elements)
+
+    refined_topic = SimpleNamespace(
+            stability_score=initiation_data.stability_score,
+            feasibility_status=initiation_data.feasibility_status,
+            final_research_question=initiation_data.final_research_question,
+            keywords=initiation_data.workflow.keywords.all(),
+            scope_elements=initiation_data.workflow.scope_elements.all(),
+            resource_suggestion=get_resource_suggestion(initiation_data.feasibility_status)
+    )
+
+    refined_topic_payload = {
+        "message": "Topic refinement data updated.",
+    }
+    refined_topic_payload.update(RefinedTopicSerializer(refined_topic).data)
     send_ws_notification(
         user_id=user_id,
         event_type=INITIATION_REFINED_TOPIC,
-        payload={
-            "message": "Topic refinement data updated.",
-            'stability_score': initiation_data.stability_score,
-            'feasibility_status': initiation_data.feasibility_status,
-            'final_research_question': initiation_data.final_research_question,
-            'keywords': TopicKeywordSerializer(refined_keywords_instance, many=True).data,
-            'scope':TopicScopeElementSerializer(refined_scope_elements_instance, many=True).data,
-            'resource_suggestion': get_resource_suggestion(initiation_data.feasibility_status)
-        }
+        payload=refined_topic_payload
     )
 
     logger.info("Task %s: Database update complete for session %s.", task_id, session_id)
