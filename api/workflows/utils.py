@@ -130,11 +130,7 @@ def update_reflection_log_by_id(log_id: UUID, reflection_log_title: str, reflect
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    log_instance = ReflectionLog.objects.select_related(
-        'workflow'
-    ).get(
-        id=log_id
-    )
+    log_instance = ReflectionLog.objects.get(id=log_id)
 
     log_instance.title = reflection_log_title
     log_instance.content = reflection_log_content
@@ -143,7 +139,7 @@ def update_reflection_log_by_id(log_id: UUID, reflection_log_title: str, reflect
 
     log_instance.save()
 
-    instances = log_instance.objects.filter(object_id=log_instance.object_id).all()
+    instances = ReflectionLog.objects.filter(object_id=log_instance.object_id).all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
