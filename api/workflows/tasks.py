@@ -43,7 +43,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
         initiation_data = InitiationPhaseData.objects.select_related(
             'workflow'
         ).get(
-            workflow__session_id=session_id
+            workflow_id=session_id
         )
     except InitiationPhaseData.DoesNotExist:
         logger.error("Task %s: InitiationPhaseData not found for session %s. Aborting.", task_id, session_id)
@@ -105,7 +105,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
         ))
 
     if new_keywords:
-        initiation_data.workflow.keywords.add(new_keywords)
+        initiation_data.workflow.keywords.add(*new_keywords, bulk=False)
 
     scope_elements = initiation_data.workflow.scope_elements.all()
     scope_element_set = set([(scope_element.label, scope_element.rationale) for scope_element in scope_elements])
@@ -125,7 +125,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
         ))
 
     if new_scope_elements:
-        initiation_data.workflow.scope_elements.add(new_scope_elements)
+        initiation_data.workflow.scope_elements.add(*new_scope_elements, bulk=False)
 
     refined_topic = SimpleNamespace(
             stability_score=initiation_data.stability_score,
@@ -175,7 +175,7 @@ def persist_chat_entry(event_type: str, payload: dict):
     try:
         # Look up the ResearchWorkflow instance
         # Retrieve the workflow state using the provided session_id UUID.
-        workflow_state = ResearchWorkflow.objects.get(session_id=uuid.UUID(session_id))
+        workflow = ResearchWorkflow.objects.get(session_id=uuid.UUID(session_id))
     except ResearchWorkflow.DoesNotExist:
         # If the workflow state is not found, log an error and stop the task without retrying.
         logger.error(f"EntityStatus with ID {session_id} not found. Aborting chat persistence.")
@@ -190,7 +190,7 @@ def persist_chat_entry(event_type: str, payload: dict):
         # Create and save the ChatHistoryEntry instance within an atomic transaction
         with transaction.atomic():
             ChatHistoryEntry.objects.create(
-                workflow_state=workflow_state,
+                workflow=workflow,
                 role=role,
                 content=content,
                 name=name,

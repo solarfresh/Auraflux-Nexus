@@ -10,7 +10,7 @@ class InitiationPhaseDataSerializer(ModelSerializer):
     class Meta:
         model = InitiationPhaseData
         fields = (
-            'workflow_state_id',
+            'workflow_id',
             'stability_score',
             'feasibility_status',
             'final_research_question',
@@ -19,4 +19,4 @@ class InitiationPhaseDataSerializer(ModelSerializer):
             'created_at',
             'updated_at'
         )
-        read_only_fields = ('workflow_state_id', 'created_at', 'updated_at')
+        read_only_fields = ('workflow_id', 'created_at', 'updated_at')

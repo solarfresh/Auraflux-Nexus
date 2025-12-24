@@ -1,10 +1,12 @@
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Dict
 from uuid import UUID
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from .models import (InitiationPhaseData, ReflectionLog, ResearchWorkflow)
+
+from .models import InitiationPhaseData, ReflectionLog, ResearchWorkflow
 
 if TYPE_CHECKING:
     from users.models import User
@@ -51,14 +53,27 @@ def patch_initiation_phase_data(session_id: UUID, data: Dict, serializer_class =
 
     raise serializer.errors
 
-def get_refined_topic_instance(session_id: UUID):
+def get_refined_topic_instance(session_id: UUID, serializer_class=None):
+    if serializer_class is None:
+        raise ValueError("serializer_class must be provided")
+
     initiation_instance = InitiationPhaseData.objects.select_related(
         'workflow',
     ).get(
-        workflow__session_id=session_id
+        workflow_id=session_id
     )
 
-    return initiation_instance
+    refined_topic = SimpleNamespace(
+            stability_score=initiation_instance.stability_score,
+            feasibility_status=initiation_instance.feasibility_status,
+            final_research_question=initiation_instance.final_research_question,
+            keywords=initiation_instance.workflow.keywords.all(),
+            scope_elements=initiation_instance.workflow.scope_elements.all(),
+            resource_suggestion= get_resource_suggestion(initiation_instance.feasibility_status)
+    )
+
+    serializer = serializer_class(refined_topic)
+    return serializer.data
 
 def create_workflow(session_id: UUID, user_id: int, initial_stage: str) -> ResearchWorkflow:
     """

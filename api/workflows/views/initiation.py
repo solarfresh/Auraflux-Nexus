@@ -1,9 +1,9 @@
 import logging
 
 from asgiref.sync import sync_to_async
-from django.db.models import Model
 from core.constants import ISPStep
 from core.utils import get_serialized_data
+from django.db.models import Model
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
@@ -60,15 +60,14 @@ class RefinedTopicView(WorkflowBaseView):
         """
 
         try:
-            initiation_instance = await sync_to_async(get_refined_topic_instance)(session_id)
+            refined_topic = await sync_to_async(get_refined_topic_instance)(session_id, RefinedTopicSerializer)
         except InitiationPhaseData.DoesNotExist:
             return Response(
                 {"detail": f"Initiation data not found for session {session_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        serializer = RefinedTopicSerializer(initiation_instance)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(refined_topic, status=status.HTTP_200_OK)
 
 
 class SessionTopicKeywordView(WorkflowBaseView):
@@ -316,8 +315,8 @@ class WorkflowChatInputView(WorkflowBaseView):
             "user_message": user_message,
             "ea_agent_role_name": ea_agent_role_name,
             "final_question_draft": phase_data.final_research_question,
-            "locked_keywords_list": await sync_to_async(get_serialized_data)({'workflow_id': session_id, 'status': 'LOCKED'}, TopicKeyword, ProcessedKeywordSerializer, many=True),
-            "locked_scope_elements_list": await sync_to_async(get_serialized_data)({'workflow_id': session_id, 'status': 'LOCKED'}, TopicScopeElement, ProcessedScopeSerializer, many=True),
+            "locked_keywords_list": await sync_to_async(get_serialized_data)({'object_id': session_id, 'status': 'LOCKED'}, TopicKeyword, ProcessedKeywordSerializer, many=True),
+            "locked_scope_elements_list": await sync_to_async(get_serialized_data)({'object_id': session_id, 'status': 'LOCKED'}, TopicScopeElement, ProcessedScopeSerializer, many=True),
             "discarded_elements_list": [],
             "conversation_summary_of_old_history": phase_data.conversation_summary,
             'last_analysis_sequence_number': phase_data.last_analysis_sequence_number,

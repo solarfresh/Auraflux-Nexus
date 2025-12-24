@@ -9,7 +9,10 @@ class ProcessedKeywordSerializer(ModelSerializer):
     Maps TopicKeyword to the ProcessedKeyword frontend interface.
     Renames 'status' to 'workflowState' and ensures camelCase.
     """
-    workflowState = serializers.ChoiceField(choices=EntityStatus.choices, source='status')
+    importanceWeight = serializers.FloatField(source='importance_weight')
+    isCore = serializers.BooleanField(source='is_core')
+    entityStatus = serializers.ChoiceField(choices=EntityStatus.choices, source='status')
+    semanticCategory = serializers.CharField(source='semantic_category')
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
 
@@ -18,10 +21,10 @@ class ProcessedKeywordSerializer(ModelSerializer):
         fields = [
             'id',
             'label',
-            'importance_weight',
-            'is_core',
-            'semantic_category',
-            'workflowState',
+            'importanceWeight',
+            'isCore',
+            'semanticCategory',
+            'entityStatus',
             'createdAt',
             'updatedAt'
         ]
@@ -32,7 +35,7 @@ class ProcessedScopeSerializer(ModelSerializer):
     Maps TopicScopeElement to the ProcessedScope frontend interface.
     Ensures 'rationale' and 'boundary_type' match frontend expectations.
     """
-    workflowState = serializers.ChoiceField(choices=EntityStatus.choices, source='status')
+    entityStatus = serializers.ChoiceField(choices=EntityStatus.choices, source='status')
     boundaryType = serializers.CharField(source='boundary_type')
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
@@ -44,7 +47,7 @@ class ProcessedScopeSerializer(ModelSerializer):
             'label',
             'boundaryType',
             'rationale',
-            'workflowState',
+            'entityStatus',
             'createdAt',
             'updatedAt'
         ]
