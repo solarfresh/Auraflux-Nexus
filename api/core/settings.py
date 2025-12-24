@@ -258,4 +258,8 @@ LLM_MODEL_CONFIGS = {
         'MODE': 'gemini',
         'API_KEY': os.environ.get('GOOGLE_GENAI_API_KEY', ''),
     },
+    'gemini-3-flash-preview': {
+        'MODE': 'gemini',
+        'API_KEY': os.environ.get('GOOGLE_GENAI_API_KEY', ''),
+    }
 }

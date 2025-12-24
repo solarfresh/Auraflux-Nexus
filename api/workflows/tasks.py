@@ -109,7 +109,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
 
     scope_elements = initiation_data.workflow.scope_elements.all()
     scope_element_set = set([(scope_element.label, scope_element.rationale) for scope_element in scope_elements])
-    TopicScopeElement = initiation_data.workflow.keywords.model
+    TopicScopeElement = initiation_data.workflow.scope_elements.model
     new_scope_elements = []
     refined_scope_elements = payload.get('refined_scope_to_lock', [])
     for element in refined_scope_elements:
