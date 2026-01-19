@@ -1,8 +1,7 @@
 from .base import (ChatEntryHistorySerializer, ReflectionLogSerializer,
                    WorkflowChatInputRequestSerializer,
                    WorkflowChatInputResponseSerializer)
-from .initiation import InitiationPhaseDataSerializer
-from .definition import RefinedTopicSerializer
+from .initiation import InitiationPhaseDataSerializer, RefinedTopicSerializer
 
 __all__ = [
     # base
