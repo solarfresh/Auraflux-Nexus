@@ -7,26 +7,27 @@ This module organizes views by ISP (Information Search Process) stages.
 # These views are stage-agnostic (e.g., chat history is used everywhere)
 from .base import (ChatHistoryEntryView, ReflectionLogView,
                    SessionReflectionLogView)
-# # Initiation Stage Views
-# # Specifically for Topic Definition & Lock-in
+# Initiation Stage Views
+# Specifically for Topic Definition & Lock-in
 from .initiation import (RefinedTopicView, SessionTopicKeywordView,
                          SessionTopicScopeElementView, WorkflowChatInputView)
 
-# # Exploration Stage Views (Placeholders for next phase)
-# # Specifically for Canvas & Resource Mapping
-# # from .exploration import (
-# #     CanvasLayoutView,
-# #     ResourceNodeMappingView
-# # )
+# Exploration Stage Views (Placeholders for next phase)
+# Specifically for Canvas & Resource Mapping
+from .exploration import (
+    SidebarRegistryInfoView,
+)
 
 __all__ = [
+    # base
     'ChatHistoryEntryView',
     'ReflectionLogView',
-    'RefinedTopicView',
     'SessionReflectionLogView',
+    # initiation
+    'RefinedTopicView',
     'SessionTopicKeywordView',
     'SessionTopicScopeElementView',
-    'TopicKeywordView',
-    'TopicScopeElementView',
     'WorkflowChatInputView',
+    # exploration
+    'SidebarRegistryInfoView'
 ]

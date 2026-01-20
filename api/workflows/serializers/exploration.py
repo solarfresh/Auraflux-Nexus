@@ -8,7 +8,6 @@ class SidebarRegistryInfoSerializer(Serializer):
     """
     """
     stabilityScore = serializers.FloatField(source='stability_score', default=0)
-    feasibilityStatus = serializers.CharField(source='feasibility_status', default='LOW')
     finalQuestion = serializers.CharField(source='final_research_question', default='')
     keywords = ProcessedKeywordSerializer(many=True, default=[])
     scope = ProcessedScopeSerializer(many=True, source='scope_elements', default=[])

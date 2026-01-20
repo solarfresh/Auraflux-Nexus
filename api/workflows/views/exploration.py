@@ -1,24 +1,27 @@
 import logging
 
 from asgiref.sync import sync_to_async
-
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
+from rest_framework import status
+from rest_framework.response import Response
+from workflows.models import ExplorationPhaseData
+from workflows.serializers import SidebarRegistryInfoSerializer
+from workflows.utils import get_sidebar_registry_info
 
-from workflows.utils import get_refined_topic_instance
 from .base import WorkflowBaseView
 
 logger = logging.getLogger(__name__)
 
 
-class RefinedTopicView(WorkflowBaseView):
+class SidebarRegistryInfoView(WorkflowBaseView):
 
     @extend_schema(
-        summary="Retrieve Initiation Phase Sidebar Data",
+        summary="Retrieve Exploration Phase Sidebar Data",
         description=(
-            "Fetches all structured data (Stability Score, Feasibility, Keywords, Scope, Reflection) "
-            "required to render the Sidebar UI during the INITIATION phase."
+            "Fetches all structured data (Stability Score, Keywords, Scope, Reflection) "
+            "required to render the Sidebar UI during the Exploration phase."
         ),
         parameters=[
             OpenApiParameter(
@@ -30,7 +33,7 @@ class RefinedTopicView(WorkflowBaseView):
             )
         ],
         responses={
-            200: RefinedTopicSerializer,
+            200: SidebarRegistryInfoSerializer,
             404: OpenApiTypes.OBJECT,
             500: OpenApiTypes.OBJECT,
         }
@@ -41,11 +44,11 @@ class RefinedTopicView(WorkflowBaseView):
         """
 
         try:
-            refined_topic = await sync_to_async(get_refined_topic_instance)(session_id, RefinedTopicSerializer)
-        except InitiationPhaseData.DoesNotExist:
+            sidebar_registry_info = await sync_to_async(get_sidebar_registry_info)(session_id, SidebarRegistryInfoSerializer)
+        except ExplorationPhaseData.DoesNotExist:
             return Response(
                 {"detail": f"Initiation data not found for session {session_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        return Response(refined_topic, status=status.HTTP_200_OK)
+        return Response(sidebar_registry_info, status=status.HTTP_200_OK)

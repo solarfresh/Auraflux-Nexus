@@ -284,6 +284,12 @@ class ExplorationPhaseData(models.Model):
         help_text="The Agent's Stability Score [1-10]. Used to derive clarity label and progress visualization."
     )
 
+    final_research_question = models.TextField(
+        default="",
+        blank=True,
+        help_text="The most refined draft of the research question extracted by the Agent."
+    )
+
     # --- Metadata ---
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
