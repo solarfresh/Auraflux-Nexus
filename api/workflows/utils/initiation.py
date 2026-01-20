@@ -33,7 +33,7 @@ def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tupl
         initiation_data = get_or_create_initiation_data(workflow)
 
         # Manually lock the data instance if necessary (complex locking is usually done via raw query or dedicated manager)
-        # initiation_data = InitiationPhaseData.objects.select_for_update().get(workflow=workflow)
+        initiation_data = InitiationPhaseData.objects.select_for_update().get(workflow=workflow)
 
         return workflow, initiation_data
 
