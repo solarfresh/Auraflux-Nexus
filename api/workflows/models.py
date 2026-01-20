@@ -181,6 +181,12 @@ class ReflectionLog(models.Model):
         default='DRAFT',
         help_text="The current state of the log (DRAFT or COMMITTED)."
     )
+    node = GenericRelation(
+        "canvases.ConceptualNode",
+        content_type_field='content_type',
+        object_id_field='object_id',
+        related_query_name='reflection_log'
+    )
 
     created_at = models.DateTimeField(
         auto_now_add=True,
