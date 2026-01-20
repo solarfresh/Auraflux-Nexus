@@ -54,11 +54,11 @@ class ConceptualCanvas(BaseModel):
 
 
 class CanvasNodeRelation(BaseModel, SpatialMixin):
-    nodes = models.ForeignKey(
+    node = models.ForeignKey(
         'ConceptualNode',
         on_delete=models.CASCADE
     )
-    canvases = models.ForeignKey(
+    canvas = models.ForeignKey(
         'ConceptualCanvas',
         on_delete=models.CASCADE
     )
