@@ -99,10 +99,20 @@ def update_topic_stability_data(event_type: str, payload: dict):
         if keyword_label in keyword_set:
             continue
 
-        new_keywords.append(TopicKeyword(
+        new_keyword = TopicKeyword(
             label=keyword_label,
             status='AI_EXTRACTED'
-        ))
+        )
+
+        # Create a concetual node in canvas
+        ConceptualNode = new_keyword.node.model
+        new_conceptual_node = ConceptualNode(
+            label=keyword_label,
+            node_type='CONCEPT',
+        )
+        new_keyword.node.add(new_conceptual_node, bulk=False)
+
+        new_keywords.append(new_keyword)
 
     if new_keywords:
         initiation_data.workflow.keywords.add(*new_keywords, bulk=False)
@@ -118,11 +128,21 @@ def update_topic_stability_data(event_type: str, payload: dict):
         if (scope_label, scope_rationale) in scope_element_set:
             continue
 
-        new_scope_elements.append(TopicScopeElement(
+        new_scope = TopicScopeElement(
             label=scope_label,
             rationale=scope_rationale,
             status='AI_EXTRACTED'
-        ))
+        )
+
+        # Create a concetual node in canvas
+        ConceptualNode = new_scope.node.model
+        new_conceptual_node = ConceptualNode(
+            label=scope_label,
+            node_type='GROUP',
+        )
+        new_scope.node.add(new_conceptual_node, bulk=False)
+
+        new_scope_elements.append(new_scope)
 
     if new_scope_elements:
         initiation_data.workflow.scope_elements.add(*new_scope_elements, bulk=False)

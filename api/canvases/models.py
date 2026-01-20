@@ -17,7 +17,8 @@ class ConceptualNode(BaseModel):
     )
     solidity = models.CharField(
         max_length=20,
-        choices=NodeSolidity.choices
+        choices=NodeSolidity.choices,
+        default=NodeSolidity.DIMMED
     )
 
     content_type = models.ForeignKey(
