@@ -1,8 +1,8 @@
 from .base import (ChatEntryHistorySerializer, ReflectionLogSerializer,
                    WorkflowChatInputRequestSerializer,
                    WorkflowChatInputResponseSerializer)
-from .initiation import InitiationPhaseDataSerializer
-from .definition import RefinedTopicSerializer
+from .initiation import InitiationPhaseDataSerializer, RefinedTopicSerializer
+from .exploration import ExplorationPhaseDataSerializer, SidebarRegistryInfoSerializer
 
 __all__ = [
     # base
@@ -10,8 +10,10 @@ __all__ = [
     'ReflectionLogSerializer',
     'WorkflowChatInputRequestSerializer',
     'WorkflowChatInputResponseSerializer',
-    # defnition
-    'RefinedTopicSerializer',
     # initiation
     'InitiationPhaseDataSerializer',
+    'RefinedTopicSerializer',
+    # exploration
+    'ExplorationPhaseDataSerializer',
+    'SidebarRegistryInfoSerializer',
 ]
