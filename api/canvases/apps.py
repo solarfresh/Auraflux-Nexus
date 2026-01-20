@@ -4,5 +4,5 @@ from django.apps import AppConfig
 class CanvasesConfig(AppConfig):
     """
     """
-    name = 'cavases'
-    label = 'cavases'
+    name = 'canvases'
+    label = 'canvases'
