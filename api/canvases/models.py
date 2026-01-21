@@ -1,6 +1,7 @@
 from canvases.constants import NodeSolidity, NodeType
 from core.models import BaseModel, SpatialMixin
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import (GenericForeignKey,
+                                                GenericRelation)
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
@@ -47,6 +48,17 @@ class ConceptualCanvas(BaseModel):
         'ConceptualNode',
         related_name='canvas',
         through='CanvasNodeRelation',
+    )
+    navigator = GenericRelation(
+        "ConceptualNode",
+        content_type_field='content_type',
+        object_id_field='object_id',
+        related_query_name='owner'
+    )
+    workflow = models.ForeignKey(
+        'workflows.ResearchWorkflow',
+        on_delete=models.CASCADE,
+        help_text="The ID of the user owning this workflow."
     )
 
     class Meta:

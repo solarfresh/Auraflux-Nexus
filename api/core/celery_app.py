@@ -1,6 +1,7 @@
 import os
 
 from celery import Celery
+from django.apps import apps
 from django.conf import settings
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
@@ -15,9 +16,4 @@ celery_app = Celery(
 )
 
 celery_app.config_from_object('django.conf:settings')
-celery_app.autodiscover_tasks([
-    'agents',
-    'messaging',
-    'workflows',
-])
-
+celery_app.autodiscover_tasks(list(apps.app_configs.keys()))
