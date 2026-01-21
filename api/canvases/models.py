@@ -12,13 +12,13 @@ class ConceptualNode(BaseModel):
         choices=NodeType.choices
     )
     groundedness = models.IntegerField(
-        default=0,
+        default=5,
         help_text=""
     )
     solidity = models.CharField(
         max_length=20,
         choices=NodeSolidity.choices,
-        default=NodeSolidity.DIMMED
+        default=NodeSolidity.PULSING
     )
 
     content_type = models.ForeignKey(

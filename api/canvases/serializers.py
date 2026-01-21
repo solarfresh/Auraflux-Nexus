@@ -5,7 +5,7 @@ from rest_framework import serializers
 
 
 class ConceptualNodeSerializer(ModelSerializer):
-    nodeType = serializers.ChoiceField(choices=NodeType.choices, source='node_type')
+    type = serializers.ChoiceField(choices=NodeType.choices, source='node_type')
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
 
@@ -14,7 +14,7 @@ class ConceptualNodeSerializer(ModelSerializer):
         fields = [
             'id',
             'label',
-            'nodeType',
+            'type',
             'groundedness',
             'solidity',
             'createdAt',
