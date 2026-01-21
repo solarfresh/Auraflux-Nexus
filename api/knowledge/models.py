@@ -1,6 +1,7 @@
-from core.constants import ResourceFormat, ResourceSource, EntityStatus
+from core.constants import EntityStatus, ResourceFormat, ResourceSource
 from core.models import BaseModel
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import (GenericForeignKey,
+                                                GenericRelation)
 from django.contrib.contenttypes.models import ContentType
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -43,6 +44,12 @@ class TopicKeyword(BaseModel):
         max_length=20,
         choices=EntityStatus.choices,
         default=EntityStatus.AI_EXTRACTED
+    )
+    node = GenericRelation(
+        "canvases.ConceptualNode",
+        content_type_field='content_type',
+        object_id_field='object_id',
+        related_query_name='keyword'
     )
 
     class Meta:
@@ -98,6 +105,12 @@ class TopicScopeElement(BaseModel):
         choices=EntityStatus.choices,
         default=EntityStatus.AI_EXTRACTED
     )
+    node = GenericRelation(
+        "canvases.ConceptualNode",
+        content_type_field='content_type',
+        object_id_field='object_id',
+        related_query_name='scope'
+    )
 
     class Meta:
         verbose_name = "Topic Scope Element"
@@ -146,6 +159,12 @@ class ResourceItem(BaseModel):
         TopicKeyword,
         related_name='resources',
         blank=True
+    )
+    node = GenericRelation(
+        "canvases.ConceptualNode",
+        content_type_field='content_type',
+        object_id_field='object_id',
+        related_query_name='resource'
     )
 
     def __str__(self):

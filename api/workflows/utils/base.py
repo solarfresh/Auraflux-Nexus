@@ -49,6 +49,15 @@ def create_reflection_log_by_session(session_id: UUID, reflection_log_title: str
         new_log.status = reflection_log_status
 
     workflow.reflection_logs.add(new_log, bulk=False)
+
+    # Create a concetual node in canvas
+    ConceptualNode = new_log.node.model
+    new_conceptual_node = ConceptualNode(
+        label=reflection_log_title,
+        node_type='INSIGHT',
+    )
+    new_log.node.add(new_conceptual_node, bulk=False)
+
     instances = workflow.reflection_logs.all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
@@ -102,7 +111,15 @@ def create_topic_scope_element_by_session(session_id: UUID, scope_label: str, sc
     if scope_status is not None:
         new_scope.status = scope_status
 
-    new_scope.save()
+    workflow.scope_elements.add(new_scope, bulk=False)
+
+    # Create a concetual node in canvas
+    ConceptualNode = new_scope.node.model
+    new_conceptual_node = ConceptualNode(
+        label=scope_label,
+        node_type='GROUP',
+    )
+    new_scope.node.add(new_conceptual_node, bulk=False)
 
     instances = workflow.scope_elements.all()
     serializer = serializer_class(instances, many=True)
@@ -139,6 +156,14 @@ def create_topic_keyword_by_session(session_id: UUID, keyword_label: str, keywor
         new_keyword.status = keyword_status
 
     workflow.keywords.add(new_keyword, bulk=False)
+
+    # Create a concetual node in canvas
+    ConceptualNode = new_keyword.node.model
+    new_conceptual_node = ConceptualNode(
+        label=keyword_label,
+        node_type='CONCEPT',
+    )
+    new_keyword.node.add(new_conceptual_node, bulk=False)
 
     instances = workflow.keywords.all()
     serializer = serializer_class(instances, many=True)

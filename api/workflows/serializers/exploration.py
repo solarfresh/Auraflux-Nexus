@@ -1,6 +1,5 @@
 from adrf.serializers import ModelSerializer, Serializer
-from knowledge.serializers import (ProcessedKeywordSerializer,
-                                   ProcessedScopeSerializer)
+from canvases.serializers import ConceptualNodeSerializer
 from rest_framework import serializers
 from workflows.models import ExplorationPhaseData
 
@@ -33,5 +32,4 @@ class SidebarRegistryInfoSerializer(Serializer):
     """
     stabilityScore = serializers.FloatField(source='stability_score', default=0)
     finalQuestion = serializers.CharField(source='final_research_question', default='')
-    keywords = ProcessedKeywordSerializer(many=True, default=[])
-    scope = ProcessedScopeSerializer(many=True, source='scope_elements', default=[])
+    nodes = ConceptualNodeSerializer(many=True, default=[])
