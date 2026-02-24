@@ -1,12 +1,13 @@
 import logging
-
 from types import SimpleNamespace
 from uuid import UUID
 
 from django.apps import apps
-from django.db.models import Q
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from messaging.constants import CreateNewCanvas
+from messaging.tasks import publish_event
 from workflows.models import ExplorationPhaseData, ResearchWorkflow
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,12 @@ def get_or_create_exploration_data(workflow: ResearchWorkflow, stability_score: 
     exploration_data.stability_score = stability_score
     exploration_data.final_research_question = final_research_question
     exploration_data.save()
+
+    publish_event.delay(
+        event_type=CreateNewCanvas.name,
+        payload={'workflow_id': workflow.session_id},
+        queue=CreateNewCanvas.queue
+    )
 
     return exploration_data
 

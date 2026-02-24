@@ -20,3 +20,8 @@ class TopicStabilityUpdated:
 class PersistChatEntry:
     name = "persist_chat_entry"
     queue = Queue.DEFAULT
+
+
+class CreateNewCanvas:
+    name = 'create_new_canvas'
+    queue = Queue.DEFAULT
