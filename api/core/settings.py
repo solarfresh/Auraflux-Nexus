@@ -40,7 +40,6 @@ INSTALLED_APPS = [
     'knowledge.apps.KnowledgeConfig',
     'messaging.apps.MessagingConfig',
     'realtime.apps.RealtimeConfig',
-    'search.apps.SearchConfig',
     'users.apps.UsersConfig',
     'workflows.apps.WorkflowsConfig',
 ]
@@ -243,12 +242,6 @@ SIMPLE_JWT = {
 INITIAL_ADMIN_USERNAME = os.environ.get('INITIAL_ADMIN_USERNAME', 'admin')
 INITIAL_ADMIN_PASSWORD = os.environ.get('INITIAL_ADMIN_PASSWORD', 'admin')
 INITIAL_ADMIN_EMAIL = os.environ.get('INITIAL_ADMIN_EMAIL', 'admin@example.com')
-
-GOOGLE_SEARCH_CONFIG = {
-    "google_search_engine_id": os.environ.get('GOOGLE_SEARCH_ENGINE_ID', ''),
-    "google_search_engine_api_key": os.environ.get('GOOGLE_SEARCH_ENGINE_API_KEY', ''),
-    "google_search_engine_base_url": os.environ.get('GOOGLE_SEARCH_ENGINE_BASE_URL', 'https://customsearch.googleapis.com/customsearch/v1')
-}
 
 LLM_MODEL_CONFIGS = {
     'gemini-2.0-flash': {
