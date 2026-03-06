@@ -3,8 +3,7 @@ import logging
 from typing import Any, Dict, Optional, Tuple
 
 from asgiref.sync import async_to_sync
-from auraflux_core.core.agents.generic_agent import GenericAgent
-from auraflux_core.core.schemas.agents import AgentConfig
+from auraflux_core.agents import AGENT_REGISTRY, Agent
 from auraflux_core.core.schemas.messages import Message
 
 logger = logging.getLogger(__name__)
@@ -58,7 +57,7 @@ def compose_prompt(
         logger.critical(f"Error during prompt template rendering: {e}")
         return None
 
-def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, rendered_data=None, output_format: str = 'text') -> Any:
+def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, rendered_data=None, tool_args_map: dict | None = None, output_format: str = 'text') -> Any:
     """
     Retrieves the agent response based on either a direct prompt text or rendered data.
 
@@ -67,13 +66,14 @@ def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, re
         agent_role_name: The role name of the agent.
         prompt_text: Direct prompt text to send to the agent.
         rendered_data: Data to be used for composing the prompt.
+        tool_args_map: Optional mapping of tool names to their arguments for dynamic tool configuration.
         output_format: Desired output format ('text' or 'json').
     """
 
     if prompt_text is None and rendered_data is None:
         raise ValueError("Either prompt_text or rendered_data must be provided.")
 
-    agent, role_config = get_agent_instance(agent_config_class, agent_role_name)
+    agent, role_config = get_agent_instance(agent_config_class, agent_role_name, tool_args_map=tool_args_map)
 
     if prompt_text is not None:
         prompt = prompt_text
@@ -111,7 +111,16 @@ def get_global_client_manager() -> Any:
         raise RuntimeError("ClientManager has not been initialized. Check agents/apps.py ready() method.")
     return _GLOBAL_CLIENT_MANAGER
 
-def get_agent_instance(class_name: Any, agent_role_name: str) -> Tuple[GenericAgent, Any]:
+def get_agent_instance(class_name: Any, agent_role_name: str, tool_args_map: dict | None = None) -> Tuple[Agent, Any]:
+    """
+    Retrieves an instance of the specified agent role, along with its configuration.
+
+    Args:
+        class_name: The class representing the agent configuration.
+        agent_role_name: The role name of the agent to retrieve.
+        tool_args_map: Optional mapping of tool names to their arguments for dynamic tool configuration.
+    """
+
     try:
         role_config = class_name.objects.get(name=agent_role_name)
         client_manager = get_global_client_manager()
@@ -124,8 +133,17 @@ def get_agent_instance(class_name: Any, agent_role_name: str) -> Tuple[GenericAg
             **role_config.llm_parameters
         }
 
-        agent = GenericAgent(
-            config=AgentConfig(**agent_config),
+        agent_registry = AGENT_REGISTRY[agent_role_name]
+
+        if tool_args_map is not None:
+            for tool_name, args in tool_args_map.items():
+                tool_config_mapping = agent_registry.tool_config_mapping
+                if tool_name in tool_config_mapping:
+                    tool_config = tool_config_mapping[tool_name](args=args)
+                    agent_config['tool_configs'][tool_name] = tool_config
+
+        agent = agent_registry.agent_class(
+            config=agent_registry.config_class(**agent_config),
             client_manager=client_manager
         )
 

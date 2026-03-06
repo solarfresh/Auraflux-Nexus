@@ -2,6 +2,12 @@ class Queue:
     DEFAULT = 'default'
     STREAM = 'stream'
 
+
+class AgentRequest:
+    name = "handle_agent_request"
+    queue = Queue.DEFAULT
+
+
 class InitiationEAStreamRequest:
     name = "handle_initiation_ea_stream_request_event"
     queue = Queue.STREAM
