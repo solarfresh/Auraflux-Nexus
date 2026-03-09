@@ -38,6 +38,13 @@ class ConceptualNode(BaseModel):
         through='CanvasNodeRelation',
     )
 
+    workflow = models.ForeignKey(
+        'workflows.ResearchWorkflow',
+        on_delete=models.CASCADE,
+        related_name='workflow',
+        help_text="Foreign key linking the message to the parent research workflow session."
+    )
+
     class Meta:
         verbose_name = "Conceptual Node"
         verbose_name_plural = "Conceptual Nodes"
