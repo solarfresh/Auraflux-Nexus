@@ -73,7 +73,7 @@ def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, re
     if prompt_text is None and rendered_data is None:
         raise ValueError("Either prompt_text or rendered_data must be provided.")
 
-    agent, role_config = get_agent_instance(agent_config_class, agent_role_name, tool_args_map=tool_args_map)
+    agent, role_config = get_agent_instance(agent_config_class, agent_role_name)
 
     if prompt_text is not None:
         prompt = prompt_text
@@ -84,7 +84,8 @@ def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, re
 
     try:
         message = async_to_sync(agent.generate)(
-            messages=[Message(role="user", content=prompt, name='User')]
+            messages=[Message(role="user", content=prompt, name='User')],
+            tool_args_map=tool_args_map
         )
 
         if output_format == 'json':
@@ -111,7 +112,7 @@ def get_global_client_manager() -> Any:
         raise RuntimeError("ClientManager has not been initialized. Check agents/apps.py ready() method.")
     return _GLOBAL_CLIENT_MANAGER
 
-def get_agent_instance(class_name: Any, agent_role_name: str, tool_args_map: dict | None = None) -> Tuple[Agent, Any]:
+def get_agent_instance(class_name: Any, agent_role_name: str) -> Tuple[Agent, Any]:
     """
     Retrieves an instance of the specified agent role, along with its configuration.
 
@@ -134,14 +135,6 @@ def get_agent_instance(class_name: Any, agent_role_name: str, tool_args_map: dic
         }
 
         agent_registry = AGENT_REGISTRY[agent_role_name]
-
-        if tool_args_map is not None:
-            for tool_name, args in tool_args_map.items():
-                tool_config_mapping = agent_registry.tool_config_mapping
-                if tool_name in tool_config_mapping:
-                    tool_config = tool_config_mapping[tool_name](args=args)
-                    agent_config['tool_configs'][tool_name] = tool_config
-
         agent = agent_registry.agent_class(
             config=agent_registry.config_class(**agent_config),
             client_manager=client_manager
