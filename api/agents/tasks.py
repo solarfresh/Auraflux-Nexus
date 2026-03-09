@@ -1,11 +1,11 @@
 import logging
+from typing import Any, Dict
 
 from auraflux_core.core.schemas.messages import Message
 from core.celery_app import celery_app
 from django.core.cache import cache
-from messaging.constants import (AgentRequest,
-                                 InitiationEAStreamRequest, PersistChatEntry,
-                                 TopicRefinementAgentRequest,
+from messaging.constants import (AgentRequest, InitiationEAStreamRequest,
+                                 PersistChatEntry, TopicRefinementAgentRequest,
                                  TopicStabilityUpdated)
 from messaging.tasks import publish_event
 from realtime.constants import INITIATION_EA_STREAM
@@ -18,7 +18,7 @@ from .utils import (get_agent_instance, get_agent_response,
 logger = logging.getLogger(__name__)
 
 @celery_app.task(name=AgentRequest.name, ignore_result=True)
-def handle_agent_request(payload: dict, output_format: str = 'json', next_event_type: str | None = None, next_event_queue: str | None = None):
+def handle_agent_request(event_type: str, payload: dict):
     """
     Generic consumer task for handling agent requests.
 
@@ -28,15 +28,19 @@ def handle_agent_request(payload: dict, output_format: str = 'json', next_event_
             - agent_role_name: The role name of the agent to execute.
             - agent_input_data: The data to be used for rendering the prompt template.
             - tool_args_map: Optional mapping of tool names to their arguments for dynamic tool configuration.
-        output_format: The desired format of the agent's output ('json' or 'text').
-        next_event_type: Optional event type to publish after obtaining the agent's response.
-        next_event_queue: Optional queue name for the next event.
+            - next_event_type: Optional event type to publish after obtaining the agent's response.
+            - next_event_queue: Optional queue name for the next event.
+            - output_format: The desired format of the agent's output ('json' or 'text').
     """
 
     task_id = handle_agent_request.request.id
     agent_role_name = payload.get('agent_role_name')
-    agent_input_data = payload.get('agent_input_data')
+    agent_input_data: Dict[str, Any] | None = payload.get('agent_input_data')
     tool_args_map = payload.get('tool_args_map')
+
+    output_format = payload.get('output_format', 'json')
+    next_event_type = payload.get('next_event_type', None)
+    next_event_queue = payload.get('next_event_queue', None)
 
     logger.info("Task %s: Starting Graph Synthesist Agent execution.", task_id)
 
@@ -56,7 +60,7 @@ def handle_agent_request(payload: dict, output_format: str = 'json', next_event_
         publish_event.delay(
             event_type=next_event_type,
             payload=agent_output,
-            queue=next_event_queue if next_event_type else 'default'
+            queue=next_event_queue if next_event_queue else 'default'
         )
 
 @celery_app.task(name=TopicRefinementAgentRequest.name, ignore_result=True)

@@ -57,7 +57,7 @@ def compose_prompt(
         logger.critical(f"Error during prompt template rendering: {e}")
         return None
 
-def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, rendered_data=None, tool_args_map: dict | None = None, output_format: str = 'text') -> Any:
+def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, rendered_data: Dict[str, Any] | None = None, tool_args_map: dict | None = None, output_format: str = 'text') -> Any:
     """
     Retrieves the agent response based on either a direct prompt text or rendered data.
 

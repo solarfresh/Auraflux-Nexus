@@ -29,8 +29,5 @@ def create_new_canvas_by_workflow_id(workflow_id: UUID):
 
     node = ConceptualNode(label=canvas.name, node_type='NAVIGATION')
     canvas.navigator.add(node, bulk=False)
-    canvas.nodes.add(node, through_defaults={
-        "status": EntityStatus.LOCKED}
-    )
 
     return canvas

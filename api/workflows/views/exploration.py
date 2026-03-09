@@ -5,16 +5,32 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from workflows.models import ExplorationPhaseData, ResearchWorkflow
 from workflows.serializers import (ExplorationPhaseDataSerializer,
                                    SidebarRegistryInfoSerializer)
 from workflows.utils import (atomic_read_and_lock_exploration_data,
+                             get_conceptual_nodes_recommendation,
                              get_sidebar_registry_info)
 
 from .base import WorkflowBaseView
 
 logger = logging.getLogger(__name__)
+
+
+class ConceptualNodesRecommendationView(WorkflowBaseView):
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="",
+        description="",
+        parameters=[]
+    )
+    async def post(self, request, workflow_id, canvas_id):
+        await sync_to_async(get_conceptual_nodes_recommendation)(workflow_id, canvas_id)
+        return Response({'message': 'OK'})
 
 
 class ExplorationPhaseDataView(WorkflowBaseView):

@@ -5,6 +5,7 @@ from django.contrib.contenttypes.fields import (GenericForeignKey,
                                                 GenericRelation)
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from core.constants import EntityStatus
 
 
 class ConceptualNode(BaseModel):
@@ -50,6 +51,28 @@ class ConceptualNode(BaseModel):
         verbose_name_plural = "Conceptual Nodes"
 
 
+class ConceptualEdge(BaseModel):
+    source = models.UUIDField()
+    target = models.UUIDField()
+    weight = models.FloatField(default=1.0),
+
+    canvas = models.ForeignKey(
+        'ConceptualCanvas',
+        on_delete=models.CASCADE,
+        related_name='edge',
+        help_text="Foreign key linking the edge to its parent canvas."
+    )
+    workflow = models.ForeignKey(
+        'workflows.ResearchWorkflow',
+        on_delete=models.CASCADE,
+        help_text="Foreign key linking the message to the parent research workflow session."
+    )
+
+    class Meta:
+        verbose_name = "Conceptual Edge"
+        verbose_name_plural = "Conceptual Edges"
+
+
 class ConceptualCanvas(BaseModel):
     name = models.CharField(max_length=24)
     nodes = models.ManyToManyField(
@@ -88,6 +111,8 @@ class CanvasNodeRelation(BaseModel, SpatialMixin):
         choices=EntityStatus.choices,
         default=EntityStatus.AI_EXTRACTED
     )
+    anchor_id = models.UUIDField(help_text="The reference ID used to set positional constraints.")
+    rationale = models.CharField(help_text="The logic or reasoning behind the node's placement or selection.")
 
     class Meta:
         verbose_name = "Canvas Node Relation"
