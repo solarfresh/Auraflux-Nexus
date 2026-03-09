@@ -1,4 +1,5 @@
 from canvases.constants import NodeSolidity, NodeType
+from core.constants import EntityStatus
 from core.models import BaseModel, SpatialMixin
 from django.contrib.contenttypes.fields import (GenericForeignKey,
                                                 GenericRelation)
@@ -74,6 +75,11 @@ class CanvasNodeRelation(BaseModel, SpatialMixin):
     canvas = models.ForeignKey(
         'ConceptualCanvas',
         on_delete=models.CASCADE
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=EntityStatus.choices,
+        default=EntityStatus.AI_EXTRACTED
     )
 
     class Meta:
