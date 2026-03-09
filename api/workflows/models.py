@@ -18,7 +18,7 @@ class ResearchWorkflow(models.Model):
     """
 
     # --- Identification Fields ---
-    session_id = models.UUIDField(
+    workflow_id = models.UUIDField(
         primary_key=True,
         editable=False,
         help_text="Unique identifier for the current research workflow session."
@@ -65,7 +65,7 @@ class ResearchWorkflow(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Workflow: {self.session_id} - Stage: {self.current_stage}"
+        return f"Workflow: {self.workflow_id} - Stage: {self.current_stage}"
 
     class Meta:
         verbose_name = "Research Workflow State"
@@ -261,7 +261,7 @@ class InitiationPhaseData(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Initiation Data for Session: {self.workflow.session_id}"
+        return f"Initiation Data for Session: {self.workflow.workflow_id}"
 
     class Meta:
         verbose_name = "Initiation Phase Data"
@@ -301,7 +301,7 @@ class ExplorationPhaseData(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Exploration Data for Session: {self.workflow.session_id}"
+        return f"Exploration Data for Session: {self.workflow.workflow_id}"
 
     class Meta:
         verbose_name = "Exploration Phase Data"

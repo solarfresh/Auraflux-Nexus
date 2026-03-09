@@ -13,7 +13,7 @@ from workflows.models import ExplorationPhaseData, ResearchWorkflow
 logger = logging.getLogger(__name__)
 
 def atomic_read_and_lock_exploration_data(
-    session_id: UUID,
+    workflow_id: UUID,
     user_id: int,
     stability_score: int,
     final_research_question: str
@@ -29,7 +29,7 @@ def atomic_read_and_lock_exploration_data(
         # Note: Must use select_for_update() for locking
         workflow = get_object_or_404(
             ResearchWorkflow.objects.select_for_update(),
-            session_id=session_id,
+            workflow_id=workflow_id,
             user_id=user_id
         )
 
@@ -71,13 +71,13 @@ def get_or_create_exploration_data(workflow: ResearchWorkflow, stability_score: 
 
     publish_event.delay(
         event_type=CreateNewCanvas.name,
-        payload={'workflow_id': workflow.session_id},
+        payload={'workflow_id': workflow.workflow_id},
         queue=CreateNewCanvas.queue
     )
 
     return exploration_data
 
-def get_sidebar_registry_info(session_id: UUID, serializer_class=None):
+def get_sidebar_registry_info(workflow_id: UUID, serializer_class=None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
@@ -86,14 +86,10 @@ def get_sidebar_registry_info(session_id: UUID, serializer_class=None):
     exploration_instance = ExplorationPhaseData.objects.select_related(
         'workflow',
     ).get(
-        workflow_id=session_id
+        workflow_id=workflow_id
     )
 
-    nodes = ConceptualNode.objects.filter(
-        Q(keyword__workflow=exploration_instance.workflow) |
-        Q(scope__workflow=exploration_instance.workflow) |
-        Q(reflection_log__workflow=exploration_instance.workflow)
-    ).distinct()
+    nodes = ConceptualNode.objects.filter(workflow=exploration_instance.workflow).all()
 
     sidebar_registry_info = SimpleNamespace(
         stability_score=exploration_instance.stability_score,

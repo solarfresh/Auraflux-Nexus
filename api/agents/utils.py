@@ -98,8 +98,8 @@ def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, re
     except Exception as e:
         raise e
 
-def get_handle_topic_refinement_agent_request_key(session_id: str) -> str:
-    return f"handle_topic_refinement_agent_request:{session_id}"
+def get_handle_topic_refinement_agent_request_key(workflow_id: str) -> str:
+    return f"handle_topic_refinement_agent_request:{workflow_id}"
 
 def set_global_client_manager(client_manager: Any):
     """Sets the initialized ClientManager instance."""

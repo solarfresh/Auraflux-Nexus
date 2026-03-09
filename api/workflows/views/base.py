@@ -33,11 +33,11 @@ class ChatHistoryEntryView(WorkflowBaseView):
     @extend_schema(
         summary="Retrieve Chat History for Workflow Session",
         description=(
-            "Fetches the complete chat history associated with a specific workflow session identified by session_id."
+            "Fetches the complete chat history associated with a specific workflow session identified by workflow_id."
         ),
         parameters=[
             OpenApiParameter(
-                name="session_id",
+                name="workflow_id",
                 location=OpenApiParameter.PATH,
                 description="Unique identifier for the workflow session.",
                 required=True,
@@ -74,8 +74,8 @@ class ChatHistoryEntryView(WorkflowBaseView):
             ),
         ]
     )
-    async def get(self, request, session_id):
-        data = await sync_to_async(get_serialized_data)({'workflow_id': session_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
+    async def get(self, request, workflow_id):
+        data = await sync_to_async(get_serialized_data)({'workflow_id': workflow_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
         return Response(data, status=status.HTTP_200_OK)
 
 
@@ -84,11 +84,11 @@ class SessionReflectionLogView(WorkflowBaseView):
     @extend_schema(
         summary="Retrieve Reflection Log for Workflow Session",
         description=(
-            "Fetches the list of Reflection Logs associated with a specific workflow session identified by session_id."
+            "Fetches the list of Reflection Logs associated with a specific workflow session identified by workflow_id."
         ),
         parameters=[
             OpenApiParameter(
-                name="session_id",
+                name="workflow_id",
                 location=OpenApiParameter.PATH,
                 description="Unique identifier for the workflow session.",
                 required=True,
@@ -101,11 +101,11 @@ class SessionReflectionLogView(WorkflowBaseView):
             500: OpenApiTypes.OBJECT,
         }
     )
-    async def get(self, request, session_id):
+    async def get(self, request, workflow_id):
         try:
-            data = await sync_to_async(get_reflection_log_by_session)(session_id, serializer_class=ReflectionLogSerializer)
+            data = await sync_to_async(get_reflection_log_by_session)(workflow_id, serializer_class=ReflectionLogSerializer)
         except ReflectionLog.DoesNotExist:
-            return Response({"detail": f"Reflection logs not found for session {session_id}."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": f"Reflection logs not found for session {workflow_id}."}, status=status.HTTP_404_NOT_FOUND)
 
         return Response(data, status=status.HTTP_200_OK)
 
@@ -116,7 +116,7 @@ class SessionReflectionLogView(WorkflowBaseView):
         ),
         parameters=[
             OpenApiParameter(
-                name="session_id",
+                name="workflow_id",
                 location=OpenApiParameter.PATH,
                 description="Unique identifier for the workflow session.",
                 required=True,
@@ -131,7 +131,7 @@ class SessionReflectionLogView(WorkflowBaseView):
             500: OpenApiTypes.OBJECT,
         }
     )
-    async def post(self, request, session_id):
+    async def post(self, request, workflow_id):
         reflection_log_title = request.data.get('title')
         reflection_log_content = request.data.get('content')
         reflection_log_status = request.data.get('status', None)
@@ -149,19 +149,19 @@ class SessionReflectionLogView(WorkflowBaseView):
 
         try:
             data = await sync_to_async(create_reflection_log_by_session)(
-                session_id,
+                workflow_id,
                 reflection_log_title,
                 reflection_log_content,
                 reflection_log_status,
                 serializer_class=ReflectionLogSerializer)
         except ResearchWorkflow.DoesNotExist:
             return Response(
-                {"detail": f"Research workflow state not found for session {session_id}."},
+                {"detail": f"Research workflow state not found for session {workflow_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
         except ReflectionLog.DoesNotExist:
             return Response(
-                {"detail": f"Failed to create reflection log for session {session_id}."},
+                {"detail": f"Failed to create reflection log for session {workflow_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
 

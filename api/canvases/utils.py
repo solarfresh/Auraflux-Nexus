@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def create_new_canvas_by_workflow_id(workflow_id: UUID):
     ResearchWorkflow = apps.get_model('workflows', 'ResearchWorkflow')
     try:
-        workflow = ResearchWorkflow.objects.get(session_id=workflow_id)
+        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
     except ResearchWorkflow.DoesNotExist:
         logger.error("Workflow with id %s does not exist. Cannot create canvas.", workflow_id)
         return

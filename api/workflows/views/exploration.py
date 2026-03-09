@@ -27,7 +27,7 @@ class ExplorationPhaseDataView(WorkflowBaseView):
         description="",
         parameters=[
             OpenApiParameter(
-                name="session_id",
+                name="workflow_id",
                 location=OpenApiParameter.PATH,
                 description="Unique identifier for the workflow session.",
                 required=True,
@@ -52,7 +52,7 @@ class ExplorationPhaseDataView(WorkflowBaseView):
             ),
         ]
     )
-    async def post(self, request, session_id):
+    async def post(self, request, workflow_id):
         stability_score = request.data.get('stabilityScore')
         final_question = request.data.get('finalQuestion')
 
@@ -68,7 +68,7 @@ class ExplorationPhaseDataView(WorkflowBaseView):
         try:
             # Atomic read and lock (runs in a sync thread via @sync_to_async)
             workflow, phase_data = await sync_to_async(atomic_read_and_lock_exploration_data)(
-                session_id=session_id,
+                workflow_id=workflow_id,
                 user_id=user.id,
                 stability_score=stability_score,
                 final_research_question=final_question
@@ -98,7 +98,7 @@ class SidebarRegistryInfoView(WorkflowBaseView):
         ),
         parameters=[
             OpenApiParameter(
-                name="session_id",
+                name="workflow_id",
                 location=OpenApiParameter.PATH,
                 description="Unique identifier for the workflow session.",
                 required=True,
@@ -111,16 +111,16 @@ class SidebarRegistryInfoView(WorkflowBaseView):
             500: OpenApiTypes.OBJECT,
         }
     )
-    async def get(self, request, session_id):
+    async def get(self, request, workflow_id):
         """
         Retrieves InitiationPhaseData and related topic components for the sidebar.
         """
 
         try:
-            sidebar_registry_info = await sync_to_async(get_sidebar_registry_info)(session_id, SidebarRegistryInfoSerializer)
+            sidebar_registry_info = await sync_to_async(get_sidebar_registry_info)(workflow_id, SidebarRegistryInfoSerializer)
         except ExplorationPhaseData.DoesNotExist:
             return Response(
-                {"detail": f"Initiation data not found for session {session_id}."},
+                {"detail": f"Initiation data not found for session {workflow_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
 
