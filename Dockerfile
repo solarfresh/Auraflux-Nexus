@@ -11,7 +11,7 @@ COPY README.md /api
 
 WORKDIR /api
 
-# Install system dependencies needed for PostgreSQL
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
@@ -36,6 +36,10 @@ RUN python setup.py build_ext --inplace
 FROM python:3.13-slim AS runtime
 
 RUN sed -i 's/deb.debian.org/debian.csie.ntu.edu.tw/g' /etc/apt/sources.list.d/debian.sources
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgraphviz-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy the entire Python environment from the builder stage
 # This includes the Python interpreter, site-packages, and compiled extensions.

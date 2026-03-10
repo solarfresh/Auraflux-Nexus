@@ -1,6 +1,6 @@
 from adrf.serializers import ModelSerializer, Serializer
 from canvases.constants import NodeType
-from canvases.models import ConceptualNode
+from canvases.models import ConceptualEdge, ConceptualNode
 from rest_framework import serializers
 
 
@@ -9,7 +9,7 @@ class ConceptualEdgeSerializer(ModelSerializer):
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
 
     class Meta:
-        model = ConceptualNode
+        model = ConceptualEdge
         fields = [
             'id',
             'source',

@@ -24,13 +24,35 @@ class ConceptualNodesRecommendationView(WorkflowBaseView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        summary="",
-        description="",
-        parameters=[]
+        summary="Trigger Conceptual Nodes Recommendation",
+        description=(
+            "Initiates the process to recommend conceptual nodes based on the current canvas and workflow state. "
+            "This endpoint is designed to be called after the Exploration phase data is set, and it will publish an event to the message queue to start the recommendation process asynchronously."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="workflow_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the workflow session.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            ),
+            OpenApiParameter(
+                name="canvas_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the canvas for which to recommend conceptual nodes.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ]
     )
     async def post(self, request, workflow_id, canvas_id):
-        await sync_to_async(get_conceptual_nodes_recommendation)(workflow_id, canvas_id)
-        return Response({'message': 'OK'})
+        user = request.user
+        await sync_to_async(get_conceptual_nodes_recommendation)(user.id, workflow_id, canvas_id)
+        return Response(
+            {"status": "processing", "message": "Conceptual nodes recommendation is being processed."},
+            status=status.HTTP_202_ACCEPTED
+        )
 
 
 class ExplorationPhaseDataView(WorkflowBaseView):

@@ -19,7 +19,7 @@ click-didyoumean==0.3.1
 click-plugins==1.1.1.2
 click-repl==0.3.0
 cyclonedx-python-lib==11.6.0
-Cython==3.1.4
+Cython==3.2.4
 defusedxml==0.7.1
 distro==1.9.0
 Django==5.2.9

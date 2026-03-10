@@ -54,7 +54,7 @@ class ConceptualNode(BaseModel):
 class ConceptualEdge(BaseModel):
     source = models.UUIDField()
     target = models.UUIDField()
-    weight = models.FloatField(default=1.0),
+    weight = models.FloatField(default=1.0)
 
     canvas = models.ForeignKey(
         'ConceptualCanvas',
@@ -62,15 +62,16 @@ class ConceptualEdge(BaseModel):
         related_name='edge',
         help_text="Foreign key linking the edge to its parent canvas."
     )
-    workflow = models.ForeignKey(
-        'workflows.ResearchWorkflow',
-        on_delete=models.CASCADE,
-        help_text="Foreign key linking the message to the parent research workflow session."
-    )
 
     class Meta:
         verbose_name = "Conceptual Edge"
         verbose_name_plural = "Conceptual Edges"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['source', 'target', 'canvas'],
+                name='unique_conceptual_edge_per_canvas'
+            )
+        ]
 
 
 class ConceptualCanvas(BaseModel):
@@ -111,7 +112,6 @@ class CanvasNodeRelation(BaseModel, SpatialMixin):
         choices=EntityStatus.choices,
         default=EntityStatus.AI_EXTRACTED
     )
-    anchor_id = models.UUIDField(help_text="The reference ID used to set positional constraints.")
     rationale = models.CharField(help_text="The logic or reasoning behind the node's placement or selection.")
 
     class Meta:

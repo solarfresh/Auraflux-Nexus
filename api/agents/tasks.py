@@ -40,6 +40,7 @@ def handle_agent_request(event_type: str, payload: dict):
 
     output_format = payload.get('output_format', 'json')
     next_event_type = payload.get('next_event_type', None)
+    next_event_payload = payload.get('next_event_payload', {})
     next_event_queue = payload.get('next_event_queue', None)
 
     logger.info("Task %s: Starting Graph Synthesist Agent execution.", task_id)
@@ -56,10 +57,13 @@ def handle_agent_request(event_type: str, payload: dict):
         logger.critical("Task %s: Agent execution failed for agent role %s.", task_id, agent_role_name)
         return
 
-    if next_event_type is not None:
+    if next_event_type and next_event_type is not None:
+        next_event_payload.update({
+            'agent_output': agent_output
+        })
         publish_event.delay(
             event_type=next_event_type,
-            payload=agent_output,
+            payload=next_event_payload,
             queue=next_event_queue if next_event_queue else 'default'
         )
 
