@@ -57,12 +57,17 @@ class ConceptualNodesRecommendationView(WorkflowBaseView):
 
 class ExplorationPhaseDataView(WorkflowBaseView):
     """
-
+    This view handles the creation and retrieval of ExplorationPhaseData for
+    a given workflow session. It ensures that the data is accessed and modified
+    in an atomic manner to prevent race conditions and maintain data integrity
+    during the Exploration phase of the workflow.
     """
-
     @extend_schema(
-        summary="",
-        description="",
+        summary="Create or Retrieve Exploration Phase Data",
+        description=(
+            "Creates or retrieves the ExplorationPhaseData for a given workflow "
+            "session. This endpoint ensures atomic access to the data to prevent "
+            "race conditions during the Exploration phase."),
         parameters=[
             OpenApiParameter(
                 name="workflow_id",

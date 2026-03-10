@@ -107,6 +107,7 @@ def get_sidebar_registry_info(workflow_id: UUID, serializer_class=None):
     sidebar_registry_info = SimpleNamespace(
         stability_score=exploration_instance.stability_score,
         final_research_question=exploration_instance.final_research_question,
+        activated_canvas_id=exploration_instance.active_canvas_id,
         nodes=nodes,
     )
 

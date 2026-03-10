@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 def create_new_canvas_by_workflow_id(workflow_id: UUID):
     ResearchWorkflow = apps.get_model('workflows', 'ResearchWorkflow')
+    ExplorationPhaseData = apps.get_model('workflows', 'ExplorationPhaseData')
     try:
         workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
     except ResearchWorkflow.DoesNotExist:
@@ -28,6 +29,11 @@ def create_new_canvas_by_workflow_id(workflow_id: UUID):
 
     canvas = ConceptualCanvas(name='Default Canvas', workflow=workflow)
     canvas.save()
+
+    # TODO: we can adopt event chain to execute the update to avoid the warning.
+    exploration_phase_data = ExplorationPhaseData.objects.get(workflow=workflow)
+    exploration_phase_data.activated_canvas_id = canvas.id
+    exploration_phase_data.save()
 
     node = ConceptualNode(label=canvas.name, node_type='NAVIGATION')
     canvas.navigator.add(node, bulk=False)

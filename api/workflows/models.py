@@ -296,6 +296,8 @@ class ExplorationPhaseData(models.Model):
         help_text="The most refined draft of the research question extracted by the Agent."
     )
 
+    active_canvas_id = models.UUIDField(null=True)
+
     # --- Metadata ---
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
