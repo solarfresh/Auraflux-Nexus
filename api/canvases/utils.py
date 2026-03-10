@@ -30,9 +30,8 @@ def create_new_canvas_by_workflow_id(workflow_id: UUID):
     canvas = ConceptualCanvas(name='Default Canvas', workflow=workflow)
     canvas.save()
 
-    # TODO: we can adopt event chain to execute the update to avoid the warning.
     exploration_phase_data = ExplorationPhaseData.objects.get(workflow=workflow)
-    exploration_phase_data.activated_canvas_id = canvas.id
+    setattr(exploration_phase_data, 'activated_canvas_id', canvas.id)
     exploration_phase_data.save()
 
     node = ConceptualNode(label=canvas.name, node_type='NAVIGATION')
@@ -88,6 +87,15 @@ def create_or_update_conceptual_node_relations(canvas_id: str, data: Dict[str, A
 def get_conceptual_graph(canvas_id: str):
     canvas_node_relations = CanvasNodeRelation.objects.filter(canvas__id=canvas_id).all()
     on_canvas_edges = ConceptualEdge.objects.filter(canvas__id=canvas_id).all()
+    on_graph_nodes = {}
+    for relation in canvas_node_relations:
+        position = SimpleNamespace(
+            x=relation.x,
+            y=relation.y
+        )
+        setattr(relation.node, 'position', position)
+        on_graph_nodes[relation.node.id] = relation.node
+
     graph_instance = SimpleNamespace(
         nodes={relation.node.id: relation.node for relation in canvas_node_relations},
         edges=on_canvas_edges

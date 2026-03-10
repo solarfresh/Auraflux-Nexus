@@ -4,6 +4,11 @@ from canvases.models import ConceptualEdge, ConceptualNode
 from rest_framework import serializers
 
 
+class PositionSerializer(Serializer):
+    x = serializers.FloatField()
+    y = serializers.FloatField()
+
+
 class ConceptualEdgeSerializer(ModelSerializer):
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
@@ -21,6 +26,8 @@ class ConceptualEdgeSerializer(ModelSerializer):
 
 
 class ConceptualNodeSerializer(ModelSerializer):
+    position = PositionSerializer(required=False)
+
     type = serializers.ChoiceField(choices=NodeType.choices, source='node_type')
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
@@ -31,6 +38,7 @@ class ConceptualNodeSerializer(ModelSerializer):
             'id',
             'label',
             'type',
+            'position',
             'groundedness',
             'solidity',
             'createdAt',
