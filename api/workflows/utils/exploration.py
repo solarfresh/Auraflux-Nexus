@@ -2,18 +2,18 @@ import logging
 from types import SimpleNamespace
 from uuid import UUID
 
+from core.constants import EntityStatus
 from django.apps import apps
 from django.db import transaction
-from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from messaging.constants import CreateNewCanvas
+from messaging.constants import CreateNewCanvas, RecommendConceptualNodes
 from messaging.tasks import publish_event
 from workflows.models import ExplorationPhaseData, ResearchWorkflow
 
 logger = logging.getLogger(__name__)
 
 def atomic_read_and_lock_exploration_data(
-    session_id: UUID,
+    workflow_id: UUID,
     user_id: int,
     stability_score: int,
     final_research_question: str
@@ -29,7 +29,7 @@ def atomic_read_and_lock_exploration_data(
         # Note: Must use select_for_update() for locking
         workflow = get_object_or_404(
             ResearchWorkflow.objects.select_for_update(),
-            session_id=session_id,
+            workflow_id=workflow_id,
             user_id=user_id
         )
 
@@ -49,6 +49,19 @@ def atomic_read_and_lock_exploration_data(
         exploration_data = ExplorationPhaseData.objects.select_for_update().get(workflow=workflow)
 
         return workflow, exploration_data
+
+def get_conceptual_nodes_recommendation(user_id: str, workflow_id: str, canvas_id: str):
+    """
+    """
+    publish_event.delay(
+        event_type=RecommendConceptualNodes.name,
+        payload={
+            'user_id': user_id,
+            'canvas_id': canvas_id,
+            'workflow_id': workflow_id
+        },
+        queue=RecommendConceptualNodes.queue
+    )
 
 def get_or_create_exploration_data(workflow: ResearchWorkflow, stability_score: int, final_research_question: str) -> ExplorationPhaseData:
     """
@@ -71,13 +84,13 @@ def get_or_create_exploration_data(workflow: ResearchWorkflow, stability_score: 
 
     publish_event.delay(
         event_type=CreateNewCanvas.name,
-        payload={'workflow_id': workflow.session_id},
+        payload={'workflow_id': workflow.workflow_id},
         queue=CreateNewCanvas.queue
     )
 
     return exploration_data
 
-def get_sidebar_registry_info(session_id: UUID, serializer_class=None):
+def get_sidebar_registry_info(workflow_id: UUID, serializer_class=None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
@@ -86,18 +99,15 @@ def get_sidebar_registry_info(session_id: UUID, serializer_class=None):
     exploration_instance = ExplorationPhaseData.objects.select_related(
         'workflow',
     ).get(
-        workflow_id=session_id
+        workflow_id=workflow_id
     )
 
-    nodes = ConceptualNode.objects.filter(
-        Q(keyword__workflow=exploration_instance.workflow) |
-        Q(scope__workflow=exploration_instance.workflow) |
-        Q(reflection_log__workflow=exploration_instance.workflow)
-    ).distinct()
+    nodes = ConceptualNode.objects.filter(workflow=exploration_instance.workflow).distinct()
 
     sidebar_registry_info = SimpleNamespace(
         stability_score=exploration_instance.stability_score,
         final_research_question=exploration_instance.final_research_question,
+        activated_canvas_id=exploration_instance.active_canvas_id,
         nodes=nodes,
     )
 

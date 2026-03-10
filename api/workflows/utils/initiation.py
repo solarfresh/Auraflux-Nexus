@@ -8,7 +8,7 @@ from workflows.models import InitiationPhaseData, ResearchWorkflow
 from workflows.utils.base import get_resource_suggestion
 
 
-def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tuple[ResearchWorkflow, InitiationPhaseData]:
+def atomic_read_and_lock_initiation_data(workflow_id: UUID, user_id: int) -> tuple[ResearchWorkflow, InitiationPhaseData]:
     """
     Executes a single atomic transaction to lock the state and load the initiation data.
     This is the function called by the WorkflowChatInputView.
@@ -20,7 +20,7 @@ def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tupl
         # Note: Must use select_for_update() for locking
         workflow = get_object_or_404(
             ResearchWorkflow.objects.select_for_update(),
-            session_id=session_id,
+            workflow_id=workflow_id,
             user_id=user_id
         )
 
@@ -37,25 +37,25 @@ def atomic_read_and_lock_initiation_data(session_id: UUID, user_id: int) -> tupl
 
         return workflow, initiation_data
 
-def patch_initiation_phase_data(session_id: UUID, data: Dict, serializer_class = None):
+def patch_initiation_phase_data(workflow_id: UUID, data: Dict, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
-    instance = InitiationPhaseData.objects.get(workflow__session_id=session_id)
+    instance = InitiationPhaseData.objects.get(workflow__workflow_id=workflow_id)
     serializer = serializer_class(instance, data=data, partial=True)
     if serializer.is_valid():
         serializer.save()
 
     raise serializer.errors
 
-def get_refined_topic_instance(session_id: UUID, serializer_class=None):
+def get_refined_topic_instance(workflow_id: UUID, serializer_class=None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     initiation_instance = InitiationPhaseData.objects.select_related(
         'workflow',
     ).get(
-        workflow_id=session_id
+        workflow_id=workflow_id
     )
 
     refined_topic = SimpleNamespace(

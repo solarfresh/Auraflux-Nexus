@@ -3,8 +3,7 @@ import logging
 from typing import Any, Dict, Optional, Tuple
 
 from asgiref.sync import async_to_sync
-from auraflux_core.core.agents.generic_agent import GenericAgent
-from auraflux_core.core.schemas.agents import AgentConfig
+from auraflux_core.agents import AGENT_REGISTRY, Agent
 from auraflux_core.core.schemas.messages import Message
 
 logger = logging.getLogger(__name__)
@@ -58,7 +57,7 @@ def compose_prompt(
         logger.critical(f"Error during prompt template rendering: {e}")
         return None
 
-def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, rendered_data=None, output_format: str = 'text') -> Any:
+def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, rendered_data: Dict[str, Any] | None = None, tool_args_map: dict | None = None, output_format: str = 'text') -> Any:
     """
     Retrieves the agent response based on either a direct prompt text or rendered data.
 
@@ -67,6 +66,7 @@ def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, re
         agent_role_name: The role name of the agent.
         prompt_text: Direct prompt text to send to the agent.
         rendered_data: Data to be used for composing the prompt.
+        tool_args_map: Optional mapping of tool names to their arguments for dynamic tool configuration.
         output_format: Desired output format ('text' or 'json').
     """
 
@@ -84,7 +84,8 @@ def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, re
 
     try:
         message = async_to_sync(agent.generate)(
-            messages=[Message(role="user", content=prompt, name='User')]
+            messages=[Message(role="user", content=prompt, name='User')],
+            tool_args_map=tool_args_map
         )
 
         if output_format == 'json':
@@ -97,8 +98,8 @@ def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, re
     except Exception as e:
         raise e
 
-def get_handle_topic_refinement_agent_request_key(session_id: str) -> str:
-    return f"handle_topic_refinement_agent_request:{session_id}"
+def get_handle_topic_refinement_agent_request_key(workflow_id: str) -> str:
+    return f"handle_topic_refinement_agent_request:{workflow_id}"
 
 def set_global_client_manager(client_manager: Any):
     """Sets the initialized ClientManager instance."""
@@ -111,7 +112,16 @@ def get_global_client_manager() -> Any:
         raise RuntimeError("ClientManager has not been initialized. Check agents/apps.py ready() method.")
     return _GLOBAL_CLIENT_MANAGER
 
-def get_agent_instance(class_name: Any, agent_role_name: str) -> Tuple[GenericAgent, Any]:
+def get_agent_instance(class_name: Any, agent_role_name: str) -> Tuple[Agent, Any]:
+    """
+    Retrieves an instance of the specified agent role, along with its configuration.
+
+    Args:
+        class_name: The class representing the agent configuration.
+        agent_role_name: The role name of the agent to retrieve.
+        tool_args_map: Optional mapping of tool names to their arguments for dynamic tool configuration.
+    """
+
     try:
         role_config = class_name.objects.get(name=agent_role_name)
         client_manager = get_global_client_manager()
@@ -124,8 +134,9 @@ def get_agent_instance(class_name: Any, agent_role_name: str) -> Tuple[GenericAg
             **role_config.llm_parameters
         }
 
-        agent = GenericAgent(
-            config=AgentConfig(**agent_config),
+        agent_registry = AGENT_REGISTRY[agent_role_name]
+        agent = agent_registry.agent_class(
+            config=agent_registry.config_class(**agent_config),
             client_manager=client_manager
         )
 

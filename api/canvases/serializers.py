@@ -1,7 +1,23 @@
-from adrf.serializers import ModelSerializer
+from adrf.serializers import ModelSerializer, Serializer
 from canvases.constants import NodeType
-from canvases.models import ConceptualNode
+from canvases.models import ConceptualEdge, ConceptualNode
 from rest_framework import serializers
+
+
+class ConceptualEdgeSerializer(ModelSerializer):
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+
+    class Meta:
+        model = ConceptualEdge
+        fields = [
+            'id',
+            'source',
+            'target',
+            'weight',
+            'createdAt',
+            'updatedAt'
+        ]
 
 
 class ConceptualNodeSerializer(ModelSerializer):
@@ -20,3 +36,35 @@ class ConceptualNodeSerializer(ModelSerializer):
             'createdAt',
             'updatedAt'
         ]
+
+
+class ConceptualGraphSerializer(serializers.Serializer):
+    """
+    Represents the current state (ground truth) of the canvas layout.
+    """
+    nodes = serializers.DictField(
+        child=ConceptualNodeSerializer(),
+        default=dict,
+        help_text="A mapping of unique keys to node data objects."
+    )
+    edges = serializers.ListField(
+        child=ConceptualEdgeSerializer(),
+        default=list,
+        help_text="A collection of connection parameters between nodes."
+    )
+
+
+class RecommendedConceptualNodeSerializer(Serializer):
+    id = serializers.UUIDField(
+        help_text="Unique identifier for the node."
+    )
+    label = serializers.CharField(
+        help_text="Display text or name associated with the node."
+    )
+    type = serializers.ChoiceField(choices=NodeType.choices, source='node_type')
+    anchor_id = serializers.UUIDField(
+        help_text="The reference ID used to set positional constraints."
+    )
+    rationale = serializers.CharField(
+        help_text="The logic or reasoning behind the node's placement or selection."
+    )

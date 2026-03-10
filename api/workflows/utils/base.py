@@ -10,12 +10,12 @@ if TYPE_CHECKING:
 else:
     User = get_user_model()
 
-def create_workflow(session_id: UUID, user_id: int, initial_stage: str) -> ResearchWorkflow:
+def create_workflow(workflow_id: UUID, user_id: int, initial_stage: str) -> ResearchWorkflow:
     """
     Creates a new ResearchEntityStatus instance.
     """
     return ResearchWorkflow.objects.create(
-        session_id=session_id,
+        workflow_id=workflow_id,
         user_id=user_id,
         current_stage=initial_stage
     )
@@ -29,12 +29,12 @@ def get_resource_suggestion(feasibility_status: str) -> str:
         return "The topic is highly niche or information-scarce. Start with broad keyword searches and general encyclopedias to establish foundational context before narrowing down."
     return "Please define your topic further to get a resource suggestion."
 
-def create_reflection_log_by_session(session_id: UUID, reflection_log_title: str, reflection_log_content: str, reflection_log_status: str | None = None, serializer_class = None):
+def create_reflection_log_by_session(workflow_id: UUID, reflection_log_title: str, reflection_log_content: str, reflection_log_status: str | None = None, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     try:
-        workflow = ResearchWorkflow.objects.get(session_id=session_id)
+        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
     except ResearchWorkflow.DoesNotExist:
         return
 
@@ -79,12 +79,12 @@ def update_reflection_log_by_id(log_id: UUID, reflection_log_title: str, reflect
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def get_reflection_log_by_session(session_id: UUID, serializer_class = None):
+def get_reflection_log_by_session(workflow_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     try:
-        workflow = ResearchWorkflow.objects.get(session_id=session_id)
+        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
     except ResearchWorkflow.DoesNotExist:
         return
 
@@ -92,12 +92,12 @@ def get_reflection_log_by_session(session_id: UUID, serializer_class = None):
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def create_topic_scope_element_by_session(session_id: UUID, scope_label: str, scope_rationale: str, scope_status: str | None = None, serializer_class = None):
+def create_topic_scope_element_by_session(workflow_id: UUID, scope_label: str, scope_rationale: str, scope_status: str | None = None, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     try:
-        workflow = ResearchWorkflow.objects.get(session_id=session_id)
+        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
     except ResearchWorkflow.DoesNotExist:
         return
 
@@ -125,12 +125,12 @@ def create_topic_scope_element_by_session(session_id: UUID, scope_label: str, sc
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def get_topic_scope_element_by_session(session_id: UUID, serializer_class = None):
+def get_topic_scope_element_by_session(workflow_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     try:
-        workflow = ResearchWorkflow.objects.get(session_id=session_id)
+        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
     except ResearchWorkflow.DoesNotExist:
         return
 
@@ -138,12 +138,12 @@ def get_topic_scope_element_by_session(session_id: UUID, serializer_class = None
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def create_topic_keyword_by_session(session_id: UUID, keyword_label: str, keyword_status: str | None = None, serializer_class = None):
+def create_topic_keyword_by_session(workflow_id: UUID, keyword_label: str, keyword_status: str | None = None, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     try:
-        workflow = ResearchWorkflow.objects.get(session_id=session_id)
+        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
     except ResearchWorkflow.DoesNotExist:
         return
 
@@ -169,12 +169,12 @@ def create_topic_keyword_by_session(session_id: UUID, keyword_label: str, keywor
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def get_topic_keyword_by_session(session_id: UUID, serializer_class = None):
+def get_topic_keyword_by_session(workflow_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     try:
-        workflow = ResearchWorkflow.objects.get(session_id=session_id)
+        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
     except ResearchWorkflow.DoesNotExist:
         return
 
@@ -182,13 +182,13 @@ def get_topic_keyword_by_session(session_id: UUID, serializer_class = None):
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def get_workflow(session_id: UUID, user_id: int) -> ResearchWorkflow:
+def get_workflow(workflow_id: UUID, user_id: int) -> ResearchWorkflow:
     """
     Retrieves an existing ResearchEntityStatus instance.
     If not found, it raises a DoesNotExist exception (for 404 handling in the View).
     """
     # Note: Use get_object_or_404 in the View or handle the DoesNotExist here.
     return ResearchWorkflow.objects.get(
-        session_id=session_id,
+        workflow_id=workflow_id,
         user_id=user_id
     )

@@ -1,9 +1,11 @@
 from canvases.constants import NodeSolidity, NodeType
+from core.constants import EntityStatus
 from core.models import BaseModel, SpatialMixin
 from django.contrib.contenttypes.fields import (GenericForeignKey,
                                                 GenericRelation)
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from core.constants import EntityStatus
 
 
 class ConceptualNode(BaseModel):
@@ -37,9 +39,39 @@ class ConceptualNode(BaseModel):
         through='CanvasNodeRelation',
     )
 
+    workflow = models.ForeignKey(
+        'workflows.ResearchWorkflow',
+        on_delete=models.CASCADE,
+        related_name='workflow',
+        help_text="Foreign key linking the message to the parent research workflow session."
+    )
+
     class Meta:
         verbose_name = "Conceptual Node"
         verbose_name_plural = "Conceptual Nodes"
+
+
+class ConceptualEdge(BaseModel):
+    source = models.UUIDField()
+    target = models.UUIDField()
+    weight = models.FloatField(default=1.0)
+
+    canvas = models.ForeignKey(
+        'ConceptualCanvas',
+        on_delete=models.CASCADE,
+        related_name='edge',
+        help_text="Foreign key linking the edge to its parent canvas."
+    )
+
+    class Meta:
+        verbose_name = "Conceptual Edge"
+        verbose_name_plural = "Conceptual Edges"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['source', 'target', 'canvas'],
+                name='unique_conceptual_edge_per_canvas'
+            )
+        ]
 
 
 class ConceptualCanvas(BaseModel):
@@ -75,6 +107,12 @@ class CanvasNodeRelation(BaseModel, SpatialMixin):
         'ConceptualCanvas',
         on_delete=models.CASCADE
     )
+    status = models.CharField(
+        max_length=20,
+        choices=EntityStatus.choices,
+        default=EntityStatus.AI_EXTRACTED
+    )
+    rationale = models.CharField(help_text="The logic or reasoning behind the node's placement or selection.")
 
     class Meta:
         verbose_name = "Canvas Node Relation"

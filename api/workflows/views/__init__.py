@@ -15,6 +15,7 @@ from .initiation import (RefinedTopicView, SessionTopicKeywordView,
 # Exploration Stage Views (Placeholders for next phase)
 # Specifically for Canvas & Resource Mapping
 from .exploration import (
+    ConceptualNodesRecommendationView,
     ExplorationPhaseDataView,
     SidebarRegistryInfoView,
 )
@@ -30,6 +31,7 @@ __all__ = [
     'SessionTopicScopeElementView',
     'WorkflowChatInputView',
     # exploration
+    'ConceptualNodesRecommendationView',
     'ExplorationPhaseDataView',
     'SidebarRegistryInfoView'
 ]
