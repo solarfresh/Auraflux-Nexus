@@ -10,6 +10,15 @@ class NodeSolidity(models.TextChoices):
     DIMMED = 'DIMMED', _('Dimmed')
 
 
+class NodeHandle(models.TextChoices):
+    """
+    """
+    NORTH = 'n', _('North')
+    EAST = 'e', _('East')
+    WEST = 'w', _('West')
+    SOUTH = 's', _('South')
+
+
 class NodeType(models.TextChoices):
     """
     """
