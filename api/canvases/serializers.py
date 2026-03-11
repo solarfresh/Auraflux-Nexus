@@ -1,6 +1,7 @@
 from adrf.serializers import ModelSerializer, Serializer
 from canvases.constants import NodeType
 from canvases.models import ConceptualEdge, ConceptualNode
+from core.constants import EntityStatus
 from rest_framework import serializers
 
 
@@ -27,6 +28,7 @@ class ConceptualEdgeSerializer(ModelSerializer):
 
 class ConceptualNodeSerializer(ModelSerializer):
     position = PositionSerializer(required=False)
+    status = serializers.ChoiceField(choices=EntityStatus.choices, required=False)
 
     type = serializers.ChoiceField(choices=NodeType.choices, source='node_type')
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
@@ -41,6 +43,7 @@ class ConceptualNodeSerializer(ModelSerializer):
             'position',
             'groundedness',
             'solidity',
+            'status',
             'createdAt',
             'updatedAt'
         ]
