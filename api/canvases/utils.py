@@ -5,9 +5,12 @@ from uuid import UUID
 
 from canvases.models import (CanvasNodeRelation, ConceptualCanvas,
                              ConceptualEdge, ConceptualNode)
-from canvases.serializers import ConceptualGraphSerializer
+from canvases.serializers import (ConceptualGraphSerializer,
+                                  ConceptualNodeSerializer)
 from core.constants import EntityStatus
 from django.apps import apps
+from django.db import transaction
+from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
@@ -103,3 +106,37 @@ def get_conceptual_graph(canvas_id: str):
     )
     conceptual_graph_serializer = ConceptualGraphSerializer(graph_instance)
     return conceptual_graph_serializer.data
+
+def delete_canvas_node_relation_by_constraint(canvas_id: str, node_id: str):
+    instance = CanvasNodeRelation.objects.get(canvas_id=canvas_id, node_id=node_id)
+    if not instance:
+        return
+
+    with transaction.atomic():
+        ConceptualEdge.objects.filter(
+            Q (canvas_id=canvas_id) & (Q(source=node_id) | Q(target=node_id))
+        ).delete()
+        instance.delete()
+
+def update_canvas_node_relation_by_constraint(canvas_id: str, node_id: str, data: Dict[str, Any]):
+    instance = CanvasNodeRelation.objects.get(canvas_id=canvas_id, node_id=node_id)
+    for key, value in data.items():
+        if value is None or key in ['id']:
+            continue
+
+        if key == 'position':
+            instance.x = value['x']
+            instance.y = value['y']
+
+        setattr(instance, key, value)
+
+    instance.save()
+    position = SimpleNamespace(
+        x=instance.x,
+        y=instance.y
+    )
+    setattr(instance, 'position', position)
+    setattr(instance, 'type', instance.node.node_type)
+
+    serializer = ConceptualNodeSerializer(instance)
+    return serializer.data

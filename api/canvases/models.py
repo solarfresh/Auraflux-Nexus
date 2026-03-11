@@ -53,7 +53,9 @@ class ConceptualNode(BaseModel):
 
 class ConceptualEdge(BaseModel):
     source = models.UUIDField()
+    source_handle = models.CharField(blank=True, null=True)
     target = models.UUIDField()
+    target_handle = models.CharField(blank=True, null=True)
     weight = models.FloatField(default=1.0)
 
     canvas = models.ForeignKey(
@@ -117,3 +119,9 @@ class CanvasNodeRelation(BaseModel, SpatialMixin):
     class Meta:
         verbose_name = "Canvas Node Relation"
         verbose_name_plural = "Canvas Node Relations"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['node', 'canvas'],
+                name='unique_conceptual_node_per_canvas'
+            )
+        ]
