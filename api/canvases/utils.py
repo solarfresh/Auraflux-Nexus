@@ -94,6 +94,7 @@ def get_conceptual_graph(canvas_id: str):
             y=relation.y
         )
         setattr(relation.node, 'position', position)
+        setattr(relation.node, 'status', relation.status)
         on_graph_nodes[relation.node.id] = relation.node
 
     graph_instance = SimpleNamespace(
