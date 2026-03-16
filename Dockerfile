@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy and install Python dependencies
 RUN pip install --no-cache-dir pip -U && \
-    pip install --no-cache-dir cython setuptools && \
+    pip install --no-cache-dir cython setuptools -U && \
     pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir git+https://github.com/solarfresh/auraflux-core.git@main#egg=auraflux-core
 

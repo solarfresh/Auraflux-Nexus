@@ -7,8 +7,8 @@ from canvases.serializers import ConceptualGraphSerializer
 from canvases.utils import (create_new_canvas_by_workflow_id,
                             create_or_update_conceptual_edges,
                             create_or_update_conceptual_node_relations,
-                            set_position_to_relation_nodes,
-                            get_conceptual_graph)
+                            get_conceptual_graph,
+                            set_position_to_relation_nodes)
 from core.celery_app import celery_app
 from core.constants import EntityStatus
 from messaging.constants import (AgentRequest, CreateNewCanvas,
