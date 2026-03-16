@@ -46,6 +46,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 
 # Copy the Python binary and pip from the builder stage
+COPY --from=builder /usr/bin /usr/bin
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy the built files from the builder stage

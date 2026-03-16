@@ -92,13 +92,8 @@ def get_conceptual_graph(canvas_id: str):
     on_canvas_edges = ConceptualEdge.objects.filter(canvas__id=canvas_id).all()
     on_graph_nodes = {}
     for relation in canvas_node_relations:
-        position = SimpleNamespace(
-            x=relation.x,
-            y=relation.y
-        )
-        setattr(relation.node, 'position', position)
-        setattr(relation.node, 'status', relation.status)
-        on_graph_nodes[relation.node.id] = relation.node
+        node = set_position_to_relation_nodes(relation)
+        on_graph_nodes[node.id] = node
 
     graph_instance = SimpleNamespace(
         nodes={relation.node.id: relation.node for relation in canvas_node_relations},
@@ -118,6 +113,15 @@ def delete_canvas_node_relation_by_constraint(canvas_id: str, node_id: str):
         ).delete()
         instance.delete()
 
+def set_position_to_relation_nodes(relation: CanvasNodeRelation):
+    position = SimpleNamespace(
+        x=relation.x,
+        y=relation.y
+    )
+    setattr(relation.node, 'position', position)
+    setattr(relation.node, 'status', relation.status)
+    return relation.node
+
 def update_canvas_node_relation_by_constraint(canvas_id: str, node_id: str, data: Dict[str, Any]):
     instance = CanvasNodeRelation.objects.get(canvas_id=canvas_id, node_id=node_id)
     for key, value in data.items():
@@ -131,12 +135,7 @@ def update_canvas_node_relation_by_constraint(canvas_id: str, node_id: str, data
         setattr(instance, key, value)
 
     instance.save()
-    position = SimpleNamespace(
-        x=instance.x,
-        y=instance.y
-    )
-    setattr(instance, 'position', position)
-    setattr(instance, 'type', instance.node.node_type)
 
-    serializer = ConceptualNodeSerializer(instance)
+    node = set_position_to_relation_nodes(instance)
+    serializer = ConceptualNodeSerializer(node)
     return serializer.data

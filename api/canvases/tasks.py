@@ -7,6 +7,7 @@ from canvases.serializers import ConceptualGraphSerializer
 from canvases.utils import (create_new_canvas_by_workflow_id,
                             create_or_update_conceptual_edges,
                             create_or_update_conceptual_node_relations,
+                            set_position_to_relation_nodes,
                             get_conceptual_graph)
 from core.celery_app import celery_app
 from core.constants import EntityStatus
@@ -88,8 +89,13 @@ def handle_recommend_conceptual_nodes_request(event_type: str, payload: dict):
 
     on_canvas_edges = ConceptualEdge.objects.filter(canvas__id=canvas_id).all()
 
+    graph_nodes = {}
+    for relation in canvas_node_relations:
+        node = set_position_to_relation_nodes(relation)
+        graph_nodes[node.id] = node
+
     graph_instance = SimpleNamespace(
-        nodes={relation.node.id: relation.node for relation in canvas_node_relations},
+        nodes=graph_nodes,
         edges=on_canvas_edges
     )
     conceptual_graph_serializer = ConceptualGraphSerializer(graph_instance)
@@ -97,7 +103,7 @@ def handle_recommend_conceptual_nodes_request(event_type: str, payload: dict):
     payload = {
         'agent_role_name': 'GraphSynthesistAgent',
         'agent_input_data': {
-            'on_canvas_str': on_canvas_str if 'FOCUS' in on_canvas_str else "EMPTY - Create initial FOCUS.",
+            'on_canvas_str': on_canvas_str if on_canvas_str else "EMPTY - Create initial FOCUS.",
             'pool_str': pool_str
         },
         'tool_args_map': {'spatial_locate': {'existing_graph_state': conceptual_graph_serializer.data}},
