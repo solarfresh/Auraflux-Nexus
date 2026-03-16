@@ -68,7 +68,7 @@ for package in PACKAGE_LIST:
         cythonize_list.append(f'{root}/*.pyx')
 
 setup(
-    name="twinkle_security_api",
+    name="auraflux_nexus",
     ext_modules=cythonize(
        cythonize_list,
         compiler_directives={
