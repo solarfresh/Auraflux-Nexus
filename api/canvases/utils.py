@@ -48,12 +48,16 @@ def create_or_update_conceptual_edges(canvas_id: str, data):
 
     instances = []
     for edge in data:
-        edge_instance_key = f'{edge['source']}_{edge['target']}'
-        logger.info(edge_instance_key)
-        if edge_instance_key not in on_canvas_edges:
+        statement = (
+            (f'{edge['source']}_{edge['target']}' not in on_canvas_edges)
+            and (f'{edge['target']}_{edge['source']}' not in on_canvas_edges)
+        )
+        if statement:
             instances.append(ConceptualEdge(
                 source=edge['source'],
+                source_handle=edge['source_handle'],
                 target=edge['target'],
+                target_handle=edge['target_handle'],
                 weight=edge['weight'],
                 canvas_id=canvas_id
             ))
