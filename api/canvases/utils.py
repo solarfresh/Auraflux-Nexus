@@ -46,8 +46,6 @@ def create_or_update_conceptual_edges(canvas_id: str, data):
     conceptual_edges = ConceptualEdge.objects.filter(canvas_id=canvas_id).all()
     on_canvas_edges = {f'{edge.source}_{edge.target}': edge for edge in conceptual_edges}
 
-    logger.info(on_canvas_edges)
-
     instances = []
     for edge in data:
         edge_instance_key = f'{edge['source']}_{edge['target']}'
@@ -64,11 +62,10 @@ def create_or_update_conceptual_edges(canvas_id: str, data):
 
 def create_or_update_conceptual_node_relations(canvas_id: str, data: Dict[str, Any]):
     relation_instances = CanvasNodeRelation.objects.filter(canvas__id=canvas_id).all()
-    on_canvas_nodes = {relation.node.id: relation for relation in relation_instances}
+    on_canvas_nodes = {str(relation.node.id): relation for relation in relation_instances}
 
     instances = []
     for node_id, node in data.items():
-        logger.info(node)
         if node_id in on_canvas_nodes:
             relation = on_canvas_nodes[node_id]
             relation.x = node['position'].get('x')
