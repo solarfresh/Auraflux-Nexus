@@ -18,7 +18,6 @@ class ChatEntryHistorySerializer(ModelSerializer):
 
 class ProjectSerialize(ModelSerializer):
     currentStage = serializers.CharField(source='current_stage')
-    isActive = serializers.BooleanField(source='is_active')
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
 
@@ -28,8 +27,8 @@ class ProjectSerialize(ModelSerializer):
             'id',
             'name',
             'description',
+            'status',
             'currentStage',
-            'isActive',
             'createdAt',
             'updatedAt'
         )

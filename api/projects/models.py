@@ -1,6 +1,6 @@
 import uuid
 
-from core.constants import ISPStage
+from core.constants import EntityStatus, ISPStage
 from core.models import BaseModel
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import (GenericForeignKey,
@@ -25,6 +25,11 @@ class ResearchProject(BaseModel):
         max_length=255,
         blank=True,
         default=''
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=EntityStatus.choices,
+        default=EntityStatus.AI_EXTRACTED
     )
 
     # --- Identification Fields ---
@@ -58,11 +63,6 @@ class ResearchProject(BaseModel):
         choices=ISPStage.choices,
         default=ISPStage.INITIATION,
         help_text="Current ISP phase (DEFINITION, EXPLORATION, etc.)."
-    )
-
-    is_active = models.BooleanField(
-        default=True,
-        help_text="Indicates if the project is currently in progress or concluded."
     )
 
     # --- Metadata ---
