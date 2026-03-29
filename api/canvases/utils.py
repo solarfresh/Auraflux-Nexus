@@ -15,25 +15,25 @@ from django.db.models import Q
 logger = logging.getLogger(__name__)
 
 
-def create_new_canvas_by_workflow_id(workflow_id: UUID):
-    ResearchWorkflow = apps.get_model('workflows', 'ResearchWorkflow')
-    ExplorationPhaseData = apps.get_model('workflows', 'ExplorationPhaseData')
+def create_new_canvas_by_project_id(project_id: UUID):
+    ResearchProject = apps.get_model('projects', 'ResearchProject')
+    ExplorationPhaseData = apps.get_model('projects', 'ExplorationPhaseData')
     try:
-        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
-    except ResearchWorkflow.DoesNotExist:
-        logger.error("Workflow with id %s does not exist. Cannot create canvas.", workflow_id)
+        project = ResearchProject.objects.get(id=project_id)
+    except ResearchProject.DoesNotExist:
+        logger.error("Project with id %s does not exist. Cannot create canvas.", project_id)
         return
 
-    canvas = ConceptualCanvas.objects.filter(workflow=workflow)
+    canvas = ConceptualCanvas.objects.filter(project=project)
 
     if canvas.exists():
-        logger.warning("Workflow %s already has a canvas. Skipping creation.", workflow_id)
+        logger.warning("Project %s already has a canvas. Skipping creation.", project_id)
         return
 
-    canvas = ConceptualCanvas(name='Default Canvas', workflow=workflow)
+    canvas = ConceptualCanvas(name='Default Canvas', project=project)
     canvas.save()
 
-    exploration_phase_data = ExplorationPhaseData.objects.get(workflow=workflow)
+    exploration_phase_data = ExplorationPhaseData.objects.get(project=project)
     setattr(exploration_phase_data, 'activated_canvas_id', canvas.id)
     exploration_phase_data.save()
 

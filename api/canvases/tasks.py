@@ -4,7 +4,7 @@ from typing import Any, Dict
 
 from canvases.models import CanvasNodeRelation, ConceptualEdge, ConceptualNode
 from canvases.serializers import ConceptualGraphSerializer
-from canvases.utils import (create_new_canvas_by_workflow_id,
+from canvases.utils import (create_new_canvas_by_project_id,
                             create_or_update_conceptual_edges,
                             create_or_update_conceptual_node_relations,
                             get_conceptual_graph,
@@ -23,14 +23,14 @@ logger = logging.getLogger(__name__)
 @celery_app.task(name=CreateNewCanvas.name, ignore_result=True)
 def create_new_canvas(event_type: str, payload: dict):
     task_id = create_new_canvas.request.id
-    workflow_id = payload.get('workflow_id')
-    if workflow_id is None:
-        logger.error('Task %s: workflow_id can not be None.', task_id)
-        raise ValueError('workflow_id can not be None.')
+    project_id = payload.get('project_id')
+    if project_id is None:
+        logger.error('Task %s: project_id can not be None.', task_id)
+        raise ValueError('project_id can not be None.')
 
-    create_new_canvas_by_workflow_id(workflow_id)
+    create_new_canvas_by_project_id(project_id)
 
-    logger.info("Task %s: a new canvas was created for workflow %s.", task_id, workflow_id)
+    logger.info("Task %s: a new canvas was created for project %s.", task_id, project_id)
 
 
 @celery_app.task(name=GetRecommendedConceptualNodes.name, ignore_result=True)
@@ -65,7 +65,7 @@ def handle_recommend_conceptual_nodes_request(event_type: str, payload: dict):
     task_id = handle_recommend_conceptual_nodes_request.request.id
 
     user_id = payload.get('user_id', '')
-    workflow_id = payload.get('workflow_id', '')
+    project_id = payload.get('project_id', '')
     canvas_id = payload.get('canvas_id', '')
 
     canvas_node_relations = CanvasNodeRelation.objects.filter(canvas__id=canvas_id).all()
@@ -82,7 +82,7 @@ def handle_recommend_conceptual_nodes_request(event_type: str, payload: dict):
         )
         return
 
-    on_pool_nodes = ConceptualNode.objects.filter(workflow__workflow_id=workflow_id).exclude(canvases__id=canvas_id).distinct()
+    on_pool_nodes = ConceptualNode.objects.filter(project__id=project_id).exclude(canvases__id=canvas_id).distinct()
 
     on_canvas_str = "\n".join([f"- [{relation.node.node_type}] {relation.node.label} (ID: {relation.node.id})" for relation in canvas_node_relations])
     pool_str = "\n".join([f"- [{node.node_type}] {node.label} (ID: {node.id})" for node in on_pool_nodes])

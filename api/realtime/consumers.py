@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class NotificationConsumer(AsyncWebsocketConsumer):
     """
     Handles generic WebSocket connections for an authenticated user to receive
-    real-time notifications from background tasks across all applications (e.g., workflows, agents).
+    real-time notifications from background tasks across all applications (e.g., projects, agents).
     """
 
     async def connect(self):

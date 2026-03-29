@@ -1,5 +1,5 @@
 """
-Workflow Views Module
+Project Views Module
 This module organizes views by ISP (Information Search Process) stages.
 """
 
@@ -10,7 +10,7 @@ from .base import (ChatHistoryEntryView, ReflectionLogView,
 # Initiation Stage Views
 # Specifically for Topic Definition & Lock-in
 from .initiation import (RefinedTopicView, SessionTopicKeywordView,
-                         SessionTopicScopeElementView, WorkflowChatInputView)
+                         SessionTopicScopeElementView, ProjectChatInputView)
 
 # Exploration Stage Views (Placeholders for next phase)
 # Specifically for Canvas & Resource Mapping
@@ -29,7 +29,7 @@ __all__ = [
     'RefinedTopicView',
     'SessionTopicKeywordView',
     'SessionTopicScopeElementView',
-    'WorkflowChatInputView',
+    'ProjectChatInputView',
     # exploration
     'ConceptualNodesRecommendationView',
     'ExplorationPhaseDataView',

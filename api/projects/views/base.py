@@ -9,37 +9,37 @@ from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from workflows.models import (ChatHistoryEntry, ReflectionLog,
-                              ResearchWorkflow)
-from workflows.serializers import (ChatEntryHistorySerializer,
+from projects.models import (ChatHistoryEntry, ReflectionLog,
+                              ResearchProject)
+from projects.serializers import (ChatEntryHistorySerializer,
                                    ReflectionLogSerializer)
-from workflows.utils import (create_reflection_log_by_session,
+from projects.utils import (create_reflection_log_by_session,
                              get_reflection_log_by_session,
                              update_reflection_log_by_id)
 
 logger = logging.getLogger(__name__)
 
 
-class WorkflowBaseView(APIView):
+class ProjectBaseView(APIView):
     """
-    Optional base class for all workflow views to share common
+    Optional base class for all project views to share common
     utilities like permission checks or session validation.
     """
     permission_classes = [IsAuthenticated]
 
 
-class ChatHistoryEntryView(WorkflowBaseView):
+class ChatHistoryEntryView(ProjectBaseView):
 
     @extend_schema(
-        summary="Retrieve Chat History for Workflow Session",
+        summary="Retrieve Chat History for Project Session",
         description=(
-            "Fetches the complete chat history associated with a specific workflow session identified by workflow_id."
+            "Fetches the complete chat history associated with a specific project session identified by project_id."
         ),
         parameters=[
             OpenApiParameter(
-                name="workflow_id",
+                name="project_id",
                 location=OpenApiParameter.PATH,
-                description="Unique identifier for the workflow session.",
+                description="Unique identifier for the project session.",
                 required=True,
                 type=OpenApiTypes.UUID,
             )
@@ -74,23 +74,23 @@ class ChatHistoryEntryView(WorkflowBaseView):
             ),
         ]
     )
-    async def get(self, request, workflow_id):
-        data = await sync_to_async(get_serialized_data)({'workflow_id': workflow_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
+    async def get(self, request, project_id):
+        data = await sync_to_async(get_serialized_data)({'project_id': project_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
         return Response(data, status=status.HTTP_200_OK)
 
 
-class SessionReflectionLogView(WorkflowBaseView):
+class SessionReflectionLogView(ProjectBaseView):
 
     @extend_schema(
-        summary="Retrieve Reflection Log for Workflow Session",
+        summary="Retrieve Reflection Log for Project Session",
         description=(
-            "Fetches the list of Reflection Logs associated with a specific workflow session identified by workflow_id."
+            "Fetches the list of Reflection Logs associated with a specific project session identified by project_id."
         ),
         parameters=[
             OpenApiParameter(
-                name="workflow_id",
+                name="project_id",
                 location=OpenApiParameter.PATH,
-                description="Unique identifier for the workflow session.",
+                description="Unique identifier for the project session.",
                 required=True,
                 type=OpenApiTypes.UUID,
             )
@@ -101,24 +101,24 @@ class SessionReflectionLogView(WorkflowBaseView):
             500: OpenApiTypes.OBJECT,
         }
     )
-    async def get(self, request, workflow_id):
+    async def get(self, request, project_id):
         try:
-            data = await sync_to_async(get_reflection_log_by_session)(workflow_id, serializer_class=ReflectionLogSerializer)
+            data = await sync_to_async(get_reflection_log_by_session)(project_id, serializer_class=ReflectionLogSerializer)
         except ReflectionLog.DoesNotExist:
-            return Response({"detail": f"Reflection logs not found for session {workflow_id}."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": f"Reflection logs not found for session {project_id}."}, status=status.HTTP_404_NOT_FOUND)
 
         return Response(data, status=status.HTTP_200_OK)
 
     @extend_schema(
         summary="Add a New Reflection Log",
         description=(
-            "Adds a new Reflection Log associated with the specified workflow session."
+            "Adds a new Reflection Log associated with the specified project session."
         ),
         parameters=[
             OpenApiParameter(
-                name="workflow_id",
+                name="project_id",
                 location=OpenApiParameter.PATH,
-                description="Unique identifier for the workflow session.",
+                description="Unique identifier for the project session.",
                 required=True,
                 type=OpenApiTypes.UUID,
             )
@@ -131,7 +131,7 @@ class SessionReflectionLogView(WorkflowBaseView):
             500: OpenApiTypes.OBJECT,
         }
     )
-    async def post(self, request, workflow_id):
+    async def post(self, request, project_id):
         reflection_log_title = request.data.get('title')
         reflection_log_content = request.data.get('content')
         reflection_log_status = request.data.get('status', None)
@@ -149,26 +149,26 @@ class SessionReflectionLogView(WorkflowBaseView):
 
         try:
             data = await sync_to_async(create_reflection_log_by_session)(
-                workflow_id,
+                project_id,
                 reflection_log_title,
                 reflection_log_content,
                 reflection_log_status,
                 serializer_class=ReflectionLogSerializer)
-        except ResearchWorkflow.DoesNotExist:
+        except ResearchProject.DoesNotExist:
             return Response(
-                {"detail": f"Research workflow state not found for session {workflow_id}."},
+                {"detail": f"Research project state not found for session {project_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
         except ReflectionLog.DoesNotExist:
             return Response(
-                {"detail": f"Failed to create reflection log for session {workflow_id}."},
+                {"detail": f"Failed to create reflection log for session {project_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
 
         return Response(data, status=status.HTTP_201_CREATED)
 
 
-class ReflectionLogView(WorkflowBaseView):
+class ReflectionLogView(ProjectBaseView):
 
     @extend_schema(
         summary="Update an Existing Reflection Log",

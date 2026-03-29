@@ -24,7 +24,7 @@ class ParticipantRole(models.TextChoices):
 
 class EntityStatus(models.TextChoices):
     """
-    Workflow state tokens used for consistent styling and
+    Project state tokens used for consistent styling and
     logic across different node types and UI components.
     """
     USER_DRAFT = 'USER_DRAFT', _('User Draft')
@@ -37,7 +37,7 @@ class EntityStatus(models.TextChoices):
 class ISPStep(models.TextChoices):
     """
     Information Search Process (ISP) Phases.
-    Maps to the global workflow progress tracking.
+    Maps to the global project progress tracking.
     """
     DEFINITION = 'DEFINITION', _('Definition')
     EXPLORATION = 'EXPLORATION', _('Exploration')

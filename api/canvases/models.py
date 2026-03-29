@@ -39,11 +39,11 @@ class ConceptualNode(BaseModel):
         through='CanvasNodeRelation',
     )
 
-    workflow = models.ForeignKey(
-        'workflows.ResearchWorkflow',
+    project = models.ForeignKey(
+        'projects.ResearchProject',
         on_delete=models.CASCADE,
-        related_name='workflow',
-        help_text="Foreign key linking the message to the parent research workflow session."
+        related_name='project',
+        help_text="Foreign key linking the message to the parent research project session."
     )
 
     class Meta:
@@ -89,10 +89,10 @@ class ConceptualCanvas(BaseModel):
         object_id_field='object_id',
         related_query_name='owner'
     )
-    workflow = models.ForeignKey(
-        'workflows.ResearchWorkflow',
+    project = models.ForeignKey(
+        'projects.ResearchProject',
         on_delete=models.CASCADE,
-        help_text="The ID of the user owning this workflow."
+        help_text="The ID of the user owning this project."
     )
 
     class Meta:

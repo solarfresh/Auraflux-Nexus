@@ -14,9 +14,9 @@ PACKAGE_LIST = [
     'canvases',
     'knowledge',
     'messaging',
+    'projects',
     'realtime',
-    'users',
-    'workflows'
+    'users'
 ]
 
 # Create the build directory if it doesn't exist, and clean up any previous builds.

@@ -1,6 +1,7 @@
 import uuid
 
 from core.constants import ISPStep
+from core.models import BaseModel
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import (GenericForeignKey,
                                                 GenericRelation)
@@ -11,40 +12,35 @@ from django.db import models
 User = get_user_model()
 
 
-class ResearchWorkflow(models.Model):
+class ResearchProject(BaseModel):
     """
-    Core State Data Structure for managing a user's research workflow,
+    Core State Data Structure for managing a user's research project,
     tracking Kuhlthau phases, agent outputs, and cost control variables.
     """
 
     # --- Identification Fields ---
-    workflow_id = models.UUIDField(
-        primary_key=True,
-        editable=False,
-        help_text="Unique identifier for the current research workflow session."
-    )
     keywords = GenericRelation(
         "knowledge.TopicKeyword",
         content_type_field='content_type',
         object_id_field='object_id',
-        related_query_name='workflow'
+        related_query_name='project'
     )
     scope_elements = GenericRelation(
         'knowledge.TopicScopeElement',
         content_type_field='content_type',
         object_id_field='object_id',
-        related_query_name='workflow'
+        related_query_name='project'
     )
     reflection_logs = GenericRelation(
-        'workflows.ReflectionLog',
+        'projects.ReflectionLog',
         content_type_field='content_type',
         object_id_field='object_id',
-        related_query_name='workflow'
+        related_query_name='project'
     )
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        help_text="The ID of the user owning this workflow."
+        help_text="The ID of the user owning this project."
     )
 
     # --- Universal Status & Control ---
@@ -57,7 +53,7 @@ class ResearchWorkflow(models.Model):
 
     is_active = models.BooleanField(
         default=True,
-        help_text="Indicates if the workflow is currently in progress or concluded."
+        help_text="Indicates if the project is currently in progress or concluded."
     )
 
     # --- Metadata ---
@@ -65,18 +61,18 @@ class ResearchWorkflow(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Workflow: {self.workflow_id} - Stage: {self.current_stage}"
+        return f"Project: {self.id} - Stage: {self.current_stage}"
 
     class Meta:
-        verbose_name = "Research Workflow State"
-        verbose_name_plural = "Research Workflow States"
+        verbose_name = "Research Project State"
+        verbose_name_plural = "Research Project States"
 
 
 class ChatHistoryEntry(models.Model):
     """
-    Stores individual chat messages for a research workflow,
+    Stores individual chat messages for a research project,
     matching the frontend's ChatMessage interface structure and linked to the
-    overall workflow state.
+    overall project state.
     """
 
     # Role choices, corresponding to 'user' | 'system' on the frontend
@@ -93,12 +89,12 @@ class ChatHistoryEntry(models.Model):
         help_text="Unique identifier (UUID) for the chat message, corresponding to the frontend's ID."
     )
 
-    # --- Linkage to Workflow ---
-    workflow = models.ForeignKey(
-        ResearchWorkflow,
+    # --- Linkage to Project ---
+    project = models.ForeignKey(
+        ResearchProject,
         on_delete=models.CASCADE,
         related_name='chat_history_entries',
-        help_text="Foreign key linking the message to the parent research workflow session."
+        help_text="Foreign key linking the message to the parent research project session."
     )
 
     # --- Core Message Data (Matching Frontend Interface) ---
@@ -128,7 +124,7 @@ class ChatHistoryEntry(models.Model):
 
     # Ensures the absolute chronological order of the messages
     sequence_number = models.IntegerField(
-        help_text="The sequential order of the message within the workflow's history."
+        help_text="The sequential order of the message within the project's history."
     )
 
     def __str__(self):
@@ -160,7 +156,7 @@ class ReflectionLog(models.Model):
     content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE,
-        help_text="The model type of the owner (Workflows, Resources, etc.)"
+        help_text="The model type of the owner (Projects, Resources, etc.)"
     )
     object_id = models.UUIDField(
         help_text="The UUID of the specific owner instance."
@@ -219,12 +215,12 @@ class InitiationPhaseData(models.Model):
     """
 
     # --- Linkage ---
-    workflow = models.OneToOneField(
-        'ResearchWorkflow', # Use string reference if ResearchWorkflow is defined later
+    project = models.OneToOneField(
+        'ResearchProject', # Use string reference if ResearchProject is defined later
         on_delete=models.CASCADE,
         primary_key=True,
         related_name='initiation_data',
-        help_text="One-to-one link to the parent ResearchWorkflow (Control Model)."
+        help_text="One-to-one link to the parent ResearchProject (Control Model)."
     )
 
     # --- AGENT STRUCTURED OUTPUTS (Core Sidebar Data) ---
@@ -261,7 +257,7 @@ class InitiationPhaseData(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Initiation Data for Session: {self.workflow.workflow_id}"
+        return f"Initiation Data for Session: {self.project.project_id}"
 
     class Meta:
         verbose_name = "Initiation Phase Data"
@@ -276,12 +272,12 @@ class ExplorationPhaseData(models.Model):
     """
 
     # --- Linkage ---
-    workflow = models.OneToOneField(
-        'ResearchWorkflow', # Use string reference if ResearchWorkflow is defined later
+    project = models.OneToOneField(
+        'ResearchProject', # Use string reference if ResearchProject is defined later
         on_delete=models.CASCADE,
         primary_key=True,
         related_name='exploration_data',
-        help_text="One-to-one link to the parent ResearchWorkflow (Control Model)."
+        help_text="One-to-one link to the parent ResearchProject (Control Model)."
     )
 
     # --- AGENT STRUCTURED OUTPUTS (Core Sidebar Data) ---
@@ -303,7 +299,7 @@ class ExplorationPhaseData(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Exploration Data for Session: {self.workflow.workflow_id}"
+        return f"Exploration Data for Session: {self.project.project_id}"
 
     class Meta:
         verbose_name = "Exploration Phase Data"

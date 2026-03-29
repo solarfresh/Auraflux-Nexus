@@ -7,7 +7,7 @@ from rest_framework import serializers
 class ProcessedKeywordSerializer(ModelSerializer):
     """
     Maps TopicKeyword to the ProcessedKeyword frontend interface.
-    Renames 'status' to 'workflowState' and ensures camelCase.
+    Renames 'status' to 'projectState' and ensures camelCase.
     """
     importanceWeight = serializers.FloatField(source='importance_weight')
     isCore = serializers.BooleanField(source='is_core')

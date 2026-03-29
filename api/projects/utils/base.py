@@ -3,19 +3,19 @@ from uuid import UUID
 
 from django.contrib.auth import get_user_model
 
-from ..models import ReflectionLog, ResearchWorkflow
+from ..models import ReflectionLog, ResearchProject
 
 if TYPE_CHECKING:
     from users.models import User
 else:
     User = get_user_model()
 
-def create_workflow(workflow_id: UUID, user_id: int, initial_stage: str) -> ResearchWorkflow:
+def create_project(project_id: UUID, user_id: int, initial_stage: str) -> ResearchProject:
     """
     Creates a new ResearchEntityStatus instance.
     """
-    return ResearchWorkflow.objects.create(
-        workflow_id=workflow_id,
+    return ResearchProject.objects.create(
+        id=project_id,
         user_id=user_id,
         current_stage=initial_stage
     )
@@ -29,16 +29,16 @@ def get_resource_suggestion(feasibility_status: str) -> str:
         return "The topic is highly niche or information-scarce. Start with broad keyword searches and general encyclopedias to establish foundational context before narrowing down."
     return "Please define your topic further to get a resource suggestion."
 
-def create_reflection_log_by_session(workflow_id: UUID, reflection_log_title: str, reflection_log_content: str, reflection_log_status: str | None = None, serializer_class = None):
+def create_reflection_log_by_session(project_id: UUID, reflection_log_title: str, reflection_log_content: str, reflection_log_status: str | None = None, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     try:
-        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
-    except ResearchWorkflow.DoesNotExist:
+        project = ResearchProject.objects.get(id=project_id)
+    except ResearchProject.DoesNotExist:
         return
 
-    ReflectionLog = workflow.reflection_logs.model
+    ReflectionLog = project.reflection_logs.model
     new_log = ReflectionLog(
         title=reflection_log_title,
         content=reflection_log_content,
@@ -48,7 +48,7 @@ def create_reflection_log_by_session(workflow_id: UUID, reflection_log_title: st
     if reflection_log_status is not None:
         new_log.status = reflection_log_status
 
-    workflow.reflection_logs.add(new_log, bulk=False)
+    project.reflection_logs.add(new_log, bulk=False)
 
     # Create a concetual node in canvas
     ConceptualNode = new_log.node.model
@@ -58,7 +58,7 @@ def create_reflection_log_by_session(workflow_id: UUID, reflection_log_title: st
     )
     new_log.node.add(new_conceptual_node, bulk=False)
 
-    instances = workflow.reflection_logs.all()
+    instances = project.reflection_logs.all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
@@ -79,29 +79,29 @@ def update_reflection_log_by_id(log_id: UUID, reflection_log_title: str, reflect
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def get_reflection_log_by_session(workflow_id: UUID, serializer_class = None):
+def get_reflection_log_by_session(project_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     try:
-        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
-    except ResearchWorkflow.DoesNotExist:
+        project = ResearchProject.objects.get(project_id=project_id)
+    except ResearchProject.DoesNotExist:
         return
 
-    instances = workflow.reflection_logs.all()
+    instances = project.reflection_logs.all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def create_topic_scope_element_by_session(workflow_id: UUID, scope_label: str, scope_rationale: str, scope_status: str | None = None, serializer_class = None):
+def create_topic_scope_element_by_session(project_id: UUID, scope_label: str, scope_rationale: str, scope_status: str | None = None, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     try:
-        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
-    except ResearchWorkflow.DoesNotExist:
+        project = ResearchProject.objects.get(id=project_id)
+    except ResearchProject.DoesNotExist:
         return
 
-    TopicScopeElement = workflow.scope_elements.model
+    TopicScopeElement = project.scope_elements.model
     new_scope = TopicScopeElement(
         label=scope_label,
         rationale=scope_rationale,
@@ -111,7 +111,7 @@ def create_topic_scope_element_by_session(workflow_id: UUID, scope_label: str, s
     if scope_status is not None:
         new_scope.status = scope_status
 
-    workflow.scope_elements.add(new_scope, bulk=False)
+    project.scope_elements.add(new_scope, bulk=False)
 
     # Create a concetual node in canvas
     ConceptualNode = new_scope.node.model
@@ -121,33 +121,33 @@ def create_topic_scope_element_by_session(workflow_id: UUID, scope_label: str, s
     )
     new_scope.node.add(new_conceptual_node, bulk=False)
 
-    instances = workflow.scope_elements.all()
+    instances = project.scope_elements.all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def get_topic_scope_element_by_session(workflow_id: UUID, serializer_class = None):
+def get_topic_scope_element_by_session(project_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     try:
-        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
-    except ResearchWorkflow.DoesNotExist:
+        project = ResearchProject.objects.get(id=project_id)
+    except ResearchProject.DoesNotExist:
         return
 
-    instances = workflow.scope_elements.all()
+    instances = project.scope_elements.all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def create_topic_keyword_by_session(workflow_id: UUID, keyword_label: str, keyword_status: str | None = None, serializer_class = None):
+def create_topic_keyword_by_session(project_id: UUID, keyword_label: str, keyword_status: str | None = None, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     try:
-        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
-    except ResearchWorkflow.DoesNotExist:
+        project = ResearchProject.objects.get(id=project_id)
+    except ResearchProject.DoesNotExist:
         return
 
-    TopicKeyword = workflow.keywords.model
+    TopicKeyword = project.keywords.model
     new_keyword = TopicKeyword(
         label=keyword_label,
         status='USER_DRAFT'
@@ -155,7 +155,7 @@ def create_topic_keyword_by_session(workflow_id: UUID, keyword_label: str, keywo
     if keyword_status is not None:
         new_keyword.status = keyword_status
 
-    workflow.keywords.add(new_keyword, bulk=False)
+    project.keywords.add(new_keyword, bulk=False)
 
     # Create a concetual node in canvas
     ConceptualNode = new_keyword.node.model
@@ -165,30 +165,30 @@ def create_topic_keyword_by_session(workflow_id: UUID, keyword_label: str, keywo
     )
     new_keyword.node.add(new_conceptual_node, bulk=False)
 
-    instances = workflow.keywords.all()
+    instances = project.keywords.all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def get_topic_keyword_by_session(workflow_id: UUID, serializer_class = None):
+def get_topic_keyword_by_session(project_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     try:
-        workflow = ResearchWorkflow.objects.get(workflow_id=workflow_id)
-    except ResearchWorkflow.DoesNotExist:
+        project = ResearchProject.objects.get(id=project_id)
+    except ResearchProject.DoesNotExist:
         return
 
-    instances = workflow.keywords.all()
+    instances = project.keywords.all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def get_workflow(workflow_id: UUID, user_id: int) -> ResearchWorkflow:
+def get_project(project_id: UUID, user_id: int) -> ResearchProject:
     """
     Retrieves an existing ResearchEntityStatus instance.
     If not found, it raises a DoesNotExist exception (for 404 handling in the View).
     """
     # Note: Use get_object_or_404 in the View or handle the DoesNotExist here.
-    return ResearchWorkflow.objects.get(
-        workflow_id=workflow_id,
+    return ResearchProject.objects.get(
+        id=project_id,
         user_id=user_id
     )

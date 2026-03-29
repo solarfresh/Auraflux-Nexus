@@ -1,6 +1,6 @@
 from adrf.serializers import ModelSerializer, Serializer
 from rest_framework import serializers
-from workflows.models import ChatHistoryEntry, ReflectionLog
+from projects.models import ChatHistoryEntry, ReflectionLog
 
 
 class ChatEntryHistorySerializer(ModelSerializer):
@@ -36,7 +36,7 @@ class ReflectionLogSerializer(ModelSerializer):
         read_only_fields = ('id', 'createdAt', 'updatedAt')
 
 
-class WorkflowChatInputRequestSerializer(Serializer):
+class ProjectChatInputRequestSerializer(Serializer):
     user_message = serializers.CharField(
         help_text="The chat message input from the user."
     )
@@ -46,7 +46,7 @@ class WorkflowChatInputRequestSerializer(Serializer):
     )
 
 
-class WorkflowChatInputResponseSerializer(Serializer):
+class ProjectChatInputResponseSerializer(Serializer):
     status = serializers.CharField(
         help_text="Status of the chat input processing."
     )
