@@ -14,7 +14,7 @@ from projects.models import (ChatHistoryEntry, ReflectionLog,
 from projects.serializers import (ChatEntryHistorySerializer,
                                    ReflectionLogSerializer)
 from projects.utils import (create_reflection_log_by_session,
-                             get_reflection_log_by_session,
+                             get_reflection_log_by_project,
                              update_reflection_log_by_id)
 
 logger = logging.getLogger(__name__)
@@ -103,7 +103,7 @@ class SessionReflectionLogView(ProjectBaseView):
     )
     async def get(self, request, project_id):
         try:
-            data = await sync_to_async(get_reflection_log_by_session)(project_id, serializer_class=ReflectionLogSerializer)
+            data = await sync_to_async(get_reflection_log_by_project)(project_id, serializer_class=ReflectionLogSerializer)
         except ReflectionLog.DoesNotExist:
             return Response({"detail": f"Reflection logs not found for session {project_id}."}, status=status.HTTP_404_NOT_FOUND)
 

@@ -79,12 +79,12 @@ def update_reflection_log_by_id(log_id: UUID, reflection_log_title: str, reflect
     serializer = serializer_class(instances, many=True)
     return serializer.data
 
-def get_reflection_log_by_session(project_id: UUID, serializer_class = None):
+def get_reflection_log_by_project(project_id: UUID, serializer_class = None):
     if serializer_class is None:
         raise ValueError("serializer_class must be provided")
 
     try:
-        project = ResearchProject.objects.get(project_id=project_id)
+        project = ResearchProject.objects.get(id=project_id)
     except ResearchProject.DoesNotExist:
         return
 
