@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def atomic_read_and_lock_exploration_data(
     project_id: UUID,
-    user_id: int,
+    user_id: UUID,
     stability_score: int,
     final_research_question: str
 ) -> tuple[ResearchProject, ExplorationPhaseData]:
@@ -50,7 +50,7 @@ def atomic_read_and_lock_exploration_data(
 
         return project, exploration_data
 
-def get_conceptual_nodes_recommendation(user_id: str, project_id: str, canvas_id: str):
+def get_conceptual_nodes_recommendation(user_id: UUID, project_id: UUID, canvas_id: UUID):
     """
     """
     publish_event.delay(

@@ -3,6 +3,7 @@ from uuid import UUID
 
 from django.contrib.auth import get_user_model
 
+from projects.serializers.base import ProjectSerialize
 from ..models import ReflectionLog, ResearchProject
 
 if TYPE_CHECKING:
@@ -10,7 +11,7 @@ if TYPE_CHECKING:
 else:
     User = get_user_model()
 
-def create_project(project_id: UUID, user_id: int, initial_stage: str) -> ResearchProject:
+def create_project(project_id: UUID, user_id: UUID, initial_stage: str) -> ResearchProject:
     """
     Creates a new ResearchEntityStatus instance.
     """
@@ -18,6 +19,17 @@ def create_project(project_id: UUID, user_id: int, initial_stage: str) -> Resear
         id=project_id,
         user_id=user_id,
         current_stage=initial_stage
+    )
+
+def get_project_by_id(project_id: UUID, user_id: UUID) -> ResearchProject:
+    """
+    Retrieves an existing ResearchEntityStatus instance.
+    If not found, it raises a DoesNotExist exception (for 404 handling in the View).
+    """
+    # Note: Use get_object_or_404 in the View or handle the DoesNotExist here.
+    return ResearchProject.objects.get(
+        id=project_id,
+        user_id=user_id
     )
 
 def get_resource_suggestion(feasibility_status: str) -> str:
@@ -181,14 +193,3 @@ def get_topic_keyword_by_session(project_id: UUID, serializer_class = None):
     instances = project.keywords.all()
     serializer = serializer_class(instances, many=True)
     return serializer.data
-
-def get_project(project_id: UUID, user_id: int) -> ResearchProject:
-    """
-    Retrieves an existing ResearchEntityStatus instance.
-    If not found, it raises a DoesNotExist exception (for 404 handling in the View).
-    """
-    # Note: Use get_object_or_404 in the View or handle the DoesNotExist here.
-    return ResearchProject.objects.get(
-        id=project_id,
-        user_id=user_id
-    )

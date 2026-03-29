@@ -1,6 +1,6 @@
 from adrf.serializers import ModelSerializer, Serializer
 from rest_framework import serializers
-from projects.models import ChatHistoryEntry, ReflectionLog
+from projects.models import ChatHistoryEntry, ReflectionLog, ResearchProject
 
 
 class ChatEntryHistorySerializer(ModelSerializer):
@@ -14,6 +14,26 @@ class ChatEntryHistorySerializer(ModelSerializer):
     class Meta:
         model = ChatHistoryEntry
         fields = ('id', 'role', 'content', 'name', 'sequenceNumber', 'timestamp')
+
+
+class ProjectSerialize(ModelSerializer):
+    currentStage = serializers.CharField(source='current_stage')
+    isActive = serializers.BooleanField(source='is_active')
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+
+    class Meta:
+        model = ResearchProject
+        fields = (
+            'id',
+            'name',
+            'description',
+            'currentStage',
+            'isActive',
+            'createdAt',
+            'updatedAt'
+        )
+        read_only_fields = ('id', 'createdAt', 'updatedAt')
 
 
 class ReflectionLogSerializer(ModelSerializer):

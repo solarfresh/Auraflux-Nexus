@@ -1,14 +1,15 @@
 from django.urls import path
 from projects.views import (ChatHistoryEntryView,
-                             ConceptualNodesRecommendationView,
-                             ExplorationPhaseDataView, RefinedTopicView,
-                             ReflectionLogView, SessionReflectionLogView,
-                             SessionTopicKeywordView,
-                             SessionTopicScopeElementView,
-                             SidebarRegistryInfoView, ProjectChatInputView)
+                            ConceptualNodesRecommendationView,
+                            ExplorationPhaseDataView, ProjectChatInputView,
+                            ProjectView, RefinedTopicView, ReflectionLogView,
+                            SessionReflectionLogView, SessionTopicKeywordView,
+                            SessionTopicScopeElementView,
+                            SidebarRegistryInfoView)
 
 urlpatterns = [
     path('reflection/<uuid:log_id>/', ReflectionLogView.as_view(), name='reflection-log'),
+    path('', ProjectView.as_view(), name='project'),
     path('<uuid:project_id>/keywords/', SessionTopicKeywordView.as_view(), name='project-topic-keyword'),
     path('<uuid:project_id>/reflection/', SessionReflectionLogView.as_view(), name='project-reflection'),
     path('<uuid:project_id>/scopes/', SessionTopicScopeElementView.as_view(), name='project-topic-scope-element'),

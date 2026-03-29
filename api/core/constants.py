@@ -34,16 +34,14 @@ class EntityStatus(models.TextChoices):
     ARCHIVED = 'ARCHIVED', _('Archived')
 
 
-class ISPStep(models.TextChoices):
+class ISPStage(models.TextChoices):
     """
     Information Search Process (ISP) Phases.
     Maps to the global project progress tracking.
     """
-    DEFINITION = 'DEFINITION', _('Definition')
+    INITIATION = 'INITIATION', _('Initiation')
     EXPLORATION = 'EXPLORATION', _('Exploration')
-    FORMULATION = 'FORMULATION', _('Formulation')
-    COLLECTION = 'COLLECTION', _('Collection')
-    PRESENTATION = 'PRESENTATION', _('Presentation')
+    SYNTHESIS = 'SYNTHESIS', _('Synthesis')
 
 
 class ResourceFormat(models.TextChoices):

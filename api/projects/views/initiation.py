@@ -1,7 +1,7 @@
 import logging
 
 from asgiref.sync import sync_to_async
-from core.constants import ISPStep
+from core.constants import ISPStage
 from core.utils import get_serialized_data
 from django.db.models import Model
 from drf_spectacular.types import OpenApiTypes
@@ -299,10 +299,10 @@ class ProjectChatInputView(ProjectBaseView):
             logger.error(f"DB lock or retrieval error: {e}")
             return Response({"error": "Database access error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        if project.current_stage != ISPStep.DEFINITION:
+        if project.current_stage != ISPStage.INITIATION:
             error_msg = (
                 f"Operation not allowed. Current stage is '{project.current_stage}', "
-                f"expected '{ISPStep.DEFINITION}' for this chat endpoint."
+                f"expected '{ISPStage.INITIATION}' for this chat endpoint."
             )
             return Response({"error": error_msg}, status=status.HTTP_409_CONFLICT)
 

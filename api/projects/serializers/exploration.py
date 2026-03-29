@@ -22,6 +22,7 @@ class ExplorationPhaseDataSerializer(ModelSerializer):
             'projectId',
             'stabilityScore',
             'finalQuestion',
+            'activeCanvasId',
             'createdAt',
             'updatedAt'
         )

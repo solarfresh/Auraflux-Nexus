@@ -8,7 +8,7 @@ from projects.models import InitiationPhaseData, ResearchProject
 from projects.utils.base import get_resource_suggestion
 
 
-def atomic_read_and_lock_initiation_data(project_id: UUID, user_id: int) -> tuple[ResearchProject, InitiationPhaseData]:
+def atomic_read_and_lock_initiation_data(project_id: UUID, user_id: UUID) -> tuple[ResearchProject, InitiationPhaseData]:
     """
     Executes a single atomic transaction to lock the state and load the initiation data.
     This is the function called by the ProjectChatInputView.

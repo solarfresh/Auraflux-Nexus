@@ -1,13 +1,16 @@
-from .base import (ChatEntryHistorySerializer, ReflectionLogSerializer,
+from .base import (ChatEntryHistorySerializer,
                    ProjectChatInputRequestSerializer,
-                   ProjectChatInputResponseSerializer)
+                   ProjectChatInputResponseSerializer, ProjectSerialize,
+                   ReflectionLogSerializer)
+from .exploration import (ExplorationPhaseDataSerializer,
+                          SidebarRegistryInfoSerializer)
 from .initiation import InitiationPhaseDataSerializer, RefinedTopicSerializer
-from .exploration import ExplorationPhaseDataSerializer, SidebarRegistryInfoSerializer
 
 __all__ = [
     # base
     'ChatEntryHistorySerializer',
     'ReflectionLogSerializer',
+    'ProjectSerialize',
     'ProjectChatInputRequestSerializer',
     'ProjectChatInputResponseSerializer',
     # initiation

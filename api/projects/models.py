@@ -1,6 +1,6 @@
 import uuid
 
-from core.constants import ISPStep
+from core.constants import ISPStage
 from core.models import BaseModel
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import (GenericForeignKey,
@@ -17,6 +17,15 @@ class ResearchProject(BaseModel):
     Core State Data Structure for managing a user's research project,
     tracking Kuhlthau phases, agent outputs, and cost control variables.
     """
+
+    name = models.CharField(
+        max_length=100,
+    )
+    description = models.CharField(
+        max_length=255,
+        blank=True,
+        default=''
+    )
 
     # --- Identification Fields ---
     keywords = GenericRelation(
@@ -46,8 +55,8 @@ class ResearchProject(BaseModel):
     # --- Universal Status & Control ---
     current_stage = models.CharField(
         max_length=50,
-        choices=ISPStep.choices,
-        default=ISPStep.DEFINITION,
+        choices=ISPStage.choices,
+        default=ISPStage.INITIATION,
         help_text="Current ISP phase (DEFINITION, EXPLORATION, etc.)."
     )
 

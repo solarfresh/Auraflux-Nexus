@@ -6,16 +6,15 @@ from core.utils import get_serialized_data
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
+from projects.models import ChatHistoryEntry, ReflectionLog, ResearchProject
+from projects.serializers import (ChatEntryHistorySerializer, ProjectSerialize,
+                                  ReflectionLogSerializer)
+from projects.utils import (create_reflection_log_by_session,
+                            get_reflection_log_by_project,
+                            update_reflection_log_by_id)
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from projects.models import (ChatHistoryEntry, ReflectionLog,
-                              ResearchProject)
-from projects.serializers import (ChatEntryHistorySerializer,
-                                   ReflectionLogSerializer)
-from projects.utils import (create_reflection_log_by_session,
-                             get_reflection_log_by_project,
-                             update_reflection_log_by_id)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +25,14 @@ class ProjectBaseView(APIView):
     utilities like permission checks or session validation.
     """
     permission_classes = [IsAuthenticated]
+
+
+class ProjectView(ProjectBaseView):
+    async def get(self, request):
+        user = request.user
+
+        data = await sync_to_async(get_serialized_data)({'user_id': user.id}, ResearchProject, ProjectSerialize, many=True)
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class ChatHistoryEntryView(ProjectBaseView):
