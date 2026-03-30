@@ -1,17 +1,18 @@
 import logging
+from uuid import UUID
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
 
-def get_user_group_name(user_id: int) -> str:
+def get_user_group_name(user_id: UUID) -> str:
     """
     Generates the standardized Channel Group Name for a given user.
     This rule MUST be used by the consumer (to join) and the worker (to send).
     """
     return f'user_{user_id}'
 
-def send_ws_notification(user_id: int, event_type: str, payload: dict):
+def send_ws_notification(user_id: UUID, event_type: str, payload: dict):
     """
     Sends a generic notification to a specific user's WebSocket group.
     """

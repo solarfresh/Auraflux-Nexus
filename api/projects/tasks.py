@@ -9,7 +9,7 @@ from realtime.constants import INITIATION_REFINED_TOPIC
 from realtime.utils import send_ws_notification
 
 from .models import (ChatHistoryEntry, InitiationPhaseData,
-                     ResearchWorkflow)
+                     ResearchProject)
 from .serializers import RefinedTopicSerializer
 from .utils import determine_feasibility_status, get_resource_suggestion
 
@@ -25,12 +25,12 @@ def update_topic_stability_data(event_type: str, payload: dict):
     to the InitiationPhaseData model and related tables (TopicKeyword, TopicScopeElement).
 
     Args:
-        payload: Contains workflow_id, new_stability_score, is_topic_too_niche,
+        payload: Contains project_id, new_stability_score, is_topic_too_niche,
                  current_research_question, refined_keywords_to_lock, refined_scope_to_lock,
                  last_chat_sequence_number, etc.
     """
     task_id = update_topic_stability_data.request.id
-    workflow_id = payload.get('workflow_id')
+    project_id = payload.get('project_id')
     user_id = payload.get('user_id')
 
     if user_id is None:
@@ -39,18 +39,18 @@ def update_topic_stability_data(event_type: str, payload: dict):
 
     try:
         # Fetch the InitiationPhaseData instance linked to the session
-        # NOTE: This requires fetching ResearchWorkflow first to get the PK link
+        # NOTE: This requires fetching ResearchProject first to get the PK link
         initiation_data = InitiationPhaseData.objects.select_related(
-            'workflow'
+            'project'
         ).get(
-            workflow_id=workflow_id
+            project_id=project_id
         )
     except InitiationPhaseData.DoesNotExist:
-        logger.error("Task %s: InitiationPhaseData not found for session %s. Aborting.", task_id, workflow_id)
+        logger.error("Task %s: InitiationPhaseData not found for session %s. Aborting.", task_id, project_id)
         return
 
     logger.info("Task %s: Persisting TR Agent data for session %s. Score: %s",
-                task_id, workflow_id, payload.get('new_stability_score'))
+                task_id, project_id, payload.get('new_stability_score'))
 
     new_stability_score = payload.get('new_stability_score')
     if not new_stability_score or new_stability_score is None:
@@ -91,9 +91,9 @@ def update_topic_stability_data(event_type: str, payload: dict):
         'updated_at'])
 
     refined_keywords = payload.get('refined_keywords_to_lock', [])
-    keywords = initiation_data.workflow.keywords.all()
+    keywords = initiation_data.project.keywords.all()
     keyword_set = set([keyword.label for keyword in keywords])
-    TopicKeyword = initiation_data.workflow.keywords.model
+    TopicKeyword = initiation_data.project.keywords.model
     new_keywords = []
     for keyword_label in refined_keywords:
         if keyword_label in keyword_set:
@@ -115,11 +115,11 @@ def update_topic_stability_data(event_type: str, payload: dict):
         new_keywords.append(new_keyword)
 
     if new_keywords:
-        initiation_data.workflow.keywords.add(*new_keywords, bulk=False)
+        initiation_data.project.keywords.add(*new_keywords, bulk=False)
 
-    scope_elements = initiation_data.workflow.scope_elements.all()
+    scope_elements = initiation_data.project.scope_elements.all()
     scope_element_set = set([(scope_element.label, scope_element.rationale) for scope_element in scope_elements])
-    TopicScopeElement = initiation_data.workflow.scope_elements.model
+    TopicScopeElement = initiation_data.project.scope_elements.model
     new_scope_elements = []
     refined_scope_elements = payload.get('refined_scope_to_lock', [])
     for element in refined_scope_elements:
@@ -145,14 +145,14 @@ def update_topic_stability_data(event_type: str, payload: dict):
         new_scope_elements.append(new_scope)
 
     if new_scope_elements:
-        initiation_data.workflow.scope_elements.add(*new_scope_elements, bulk=False)
+        initiation_data.project.scope_elements.add(*new_scope_elements, bulk=False)
 
     refined_topic = SimpleNamespace(
             stability_score=initiation_data.stability_score,
             feasibility_status=initiation_data.feasibility_status,
             final_research_question=initiation_data.final_research_question,
-            keywords=initiation_data.workflow.keywords.all(),
-            scope_elements=initiation_data.workflow.scope_elements.all(),
+            keywords=initiation_data.project.keywords.all(),
+            scope_elements=initiation_data.project.scope_elements.all(),
             resource_suggestion=get_resource_suggestion(initiation_data.feasibility_status)
     )
 
@@ -166,7 +166,7 @@ def update_topic_stability_data(event_type: str, payload: dict):
         payload=refined_topic_payload
     )
 
-    logger.info("Task %s: Database update complete for session %s.", task_id, workflow_id)
+    logger.info("Task %s: Database update complete for session %s.", task_id, project_id)
 
 
 @celery_app.task(name=PersistChatEntry.name, ignore_result=True)
@@ -176,33 +176,33 @@ def persist_chat_entry(event_type: str, payload: dict):
     to the ChatHistoryEntry database table.
 
     Args:
-        workflow_id: The UUID of the ResearchWorkflow to link the message to.
+        project_id: The UUID of the Researchproject to link the message to.
         role: The sender's role ('user' or 'system').
         content: The text content of the message.
         name: The specific sender name (e.g., 'Explorer Agent').
-        sequence_number: The sequential order of the message within the workflow.
+        sequence_number: The sequential order of the message within the project.
 
     Returns:
         bool: True if the entry was successfully persisted, False otherwise.
     """
     task = persist_chat_entry
-    workflow_id = payload.get('workflow_id')
+    project_id = payload.get('project_id')
     role = payload.get('role')
     content = payload.get('content')
     name = payload.get('name')
     sequence_number = payload.get('sequence_number')
 
     try:
-        # Look up the ResearchWorkflow instance
-        # Retrieve the workflow state using the provided workflow_id UUID.
-        workflow = ResearchWorkflow.objects.get(workflow_id=uuid.UUID(workflow_id))
-    except ResearchWorkflow.DoesNotExist:
-        # If the workflow state is not found, log an error and stop the task without retrying.
-        logger.error(f"EntityStatus with ID {workflow_id} not found. Aborting chat persistence.")
+        # Look up the ResearchProject instance
+        # Retrieve the project state using the provided project_id UUID.
+        project = ResearchProject.objects.get(id=uuid.UUID(project_id))
+    except ResearchProject.DoesNotExist:
+        # If the project state is not found, log an error and stop the task without retrying.
+        logger.error(f"EntityStatus with ID {project_id} not found. Aborting chat persistence.")
         return False
     except Exception as e:
         # Handle other retrieval errors and initiate a retry mechanism.
-        logger.warning(f"Error fetching EntityStatus {workflow_id} before persisting chat: {e}. Retrying in 60s.")
+        logger.warning(f"Error fetching EntityStatus {project_id} before persisting chat: {e}. Retrying in 60s.")
         # Retry the task after 60 seconds
         raise task.retry(exc=e, countdown=60)
 
@@ -210,7 +210,7 @@ def persist_chat_entry(event_type: str, payload: dict):
         # Create and save the ChatHistoryEntry instance within an atomic transaction
         with transaction.atomic():
             ChatHistoryEntry.objects.create(
-                workflow=workflow,
+                project=project,
                 role=role,
                 content=content,
                 name=name,
@@ -218,11 +218,11 @@ def persist_chat_entry(event_type: str, payload: dict):
                 # 'id' and 'timestamp' are auto-generated by the model
             )
 
-        logger.info(f"Successfully persisted chat entry for session {workflow_id}, sequence {sequence_number}.")
+        logger.info(f"Successfully persisted chat entry for session {project_id}, sequence {sequence_number}.")
         return True
 
     except Exception as e:
         # Handle persistence errors (e.g., database connection issues) and retry
-        logger.error(f"Database error while persisting chat entry for session {workflow_id}: {e}. Retrying in 120s.")
+        logger.error(f"Database error while persisting chat entry for session {project_id}: {e}. Retrying in 120s.")
         # Retry the task after 120 seconds.
         raise task.retry(exc=e, countdown=120)

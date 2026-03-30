@@ -2,7 +2,7 @@ from adrf.serializers import ModelSerializer, Serializer
 from knowledge.serializers import (ProcessedKeywordSerializer,
                                    ProcessedScopeSerializer)
 from rest_framework import serializers
-from workflows.models import InitiationPhaseData
+from projects.models import InitiationPhaseData
 
 
 class InitiationPhaseDataSerializer(ModelSerializer):
@@ -13,7 +13,7 @@ class InitiationPhaseDataSerializer(ModelSerializer):
     class Meta:
         model = InitiationPhaseData
         fields = (
-            'workflow_id',
+            'project_id',
             'stability_score',
             'feasibility_status',
             'final_research_question',
@@ -22,7 +22,7 @@ class InitiationPhaseDataSerializer(ModelSerializer):
             'created_at',
             'updated_at'
         )
-        read_only_fields = ('workflow_id', 'created_at', 'updated_at')
+        read_only_fields = ('project_id', 'created_at', 'updated_at')
 
 
 class RefinedTopicSerializer(Serializer):

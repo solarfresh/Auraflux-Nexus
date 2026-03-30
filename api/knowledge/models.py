@@ -19,7 +19,7 @@ class TopicKeyword(BaseModel):
     content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE,
-        help_text="The model type of the owner (Workflows, Resources, etc.)"
+        help_text="The model type of the owner (Projects, Resources, etc.)"
     )
     object_id = models.UUIDField(
         help_text="The UUID of the specific owner instance."
@@ -86,7 +86,7 @@ class TopicScopeElement(BaseModel):
     content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE,
-        help_text="The model type of the owner (Workflows, Resources, etc.)"
+        help_text="The model type of the owner (Projects, Resources, etc.)"
     )
     object_id = models.UUIDField(
         help_text="The UUID of the specific owner instance."

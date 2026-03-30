@@ -1,8 +1,8 @@
-# 🌐 Auraflux-Nexus: The Generative AI Knowledge & Workflow Orchestrator
+# 🌐 Auraflux-Nexus: The Generative AI Knowledge & Project Orchestrator
 
-**Auraflux-Nexus** serves as the robust, Django-based backend API for the Auraflux ecosystem. It is the central nervous system that transforms complex **Interactive Search Process (ISP)** principles into actionable knowledge via structured data management and intelligent workflow coordination.
+**Auraflux-Nexus** serves as the robust, Django-based backend API for the Auraflux ecosystem. It is the central nervous system that transforms complex **Interactive Search Process (ISP)** principles into actionable knowledge via structured data management and intelligent project coordination.
 
-The **Nexus** acts as the crucial **bridge** between the user's interactive frontend experience (Auraflux-Beacon) and the deep knowledge streams, ensuring data consistency and orchestrating the multi-step research workflow.
+The **Nexus** acts as the crucial **bridge** between the user's interactive frontend experience (Auraflux-Beacon) and the deep knowledge streams, ensuring data consistency and orchestrating the multi-step research project.
 
 ---
 
@@ -18,7 +18,7 @@ Auraflux-Nexus manages the entire research lifecycle, from the initial user inpu
 ### 2. Data Integrity and Structured Output
 
 * **Source of Truth:** Serves as the authoritative source for all structured research data, including the **Reflection Log**, **Final Question Status (DRAFT/LOCKED)**, **Topic Keywords**, and **Scope Elements**.
-* **Workflow Gates:** Enforces the business logic and flow control rules (ISP principles). It verifies that all necessary data conditions (e.g., question locked, minimum keywords met) are satisfied before allowing phase transitions (e.g., from Initiation to Exploration).
+* **Project Gates:** Enforces the business logic and flow control rules (ISP principles). It verifies that all necessary data conditions (e.g., question locked, minimum keywords met) are satisfied before allowing phase transitions (e.g., from Initiation to Exploration).
 * **API Services:** Provides RESTful API endpoints for persistent data storage, retrieval, and updates from the frontend.
 
 ### 3. Real-Time Communication
@@ -30,7 +30,7 @@ Auraflux-Nexus manages the entire research lifecycle, from the initial user inpu
 
 ## 🏗️ Technical Stack
 
-Auraflux-Nexus is built on a robust, asynchronous, and scalable architecture designed to handle complex, concurrent Generative AI workflows while guaranteeing data integrity.
+Auraflux-Nexus is built on a robust, asynchronous, and scalable architecture designed to handle complex, concurrent Generative AI projects while guaranteeing data integrity.
 
 | Component | Technology / Concept | Role in Auraflux-Nexus |
 | :--- | :--- | :--- |

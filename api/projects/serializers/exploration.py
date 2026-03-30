@@ -1,7 +1,7 @@
 from adrf.serializers import ModelSerializer, Serializer
 from canvases.serializers import ConceptualNodeSerializer
 from rest_framework import serializers
-from workflows.models import ExplorationPhaseData
+from projects.models import ExplorationPhaseData
 
 
 class ExplorationPhaseDataSerializer(ModelSerializer):
@@ -9,7 +9,7 @@ class ExplorationPhaseDataSerializer(ModelSerializer):
     Serializer for ExplorationPhaseData model.
     Used to represent the overall state and key attributes of the Exploration Phase.
     """
-    workflowId = serializers.UUIDField(source='workflow_id', read_only=True)
+    projectId = serializers.UUIDField(source='project_id', read_only=True)
     stabilityScore = serializers.FloatField(source='stability_score', default=0)
     finalQuestion = serializers.CharField(source='final_research_question', default='')
     activeCanvasId = serializers.UUIDField(source='activated_canvas_id', read_only=True)
@@ -19,13 +19,14 @@ class ExplorationPhaseDataSerializer(ModelSerializer):
     class Meta:
         model = ExplorationPhaseData
         fields = (
-            'workflowId',
+            'projectId',
             'stabilityScore',
             'finalQuestion',
+            'activeCanvasId',
             'createdAt',
             'updatedAt'
         )
-        read_only_fields = ('workflowId', 'createdAt', 'updatedAt')
+        read_only_fields = ('projectId', 'createdAt', 'updatedAt')
 
 
 class SidebarRegistryInfoSerializer(Serializer):

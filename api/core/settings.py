@@ -39,9 +39,9 @@ INSTALLED_APPS = [
     'canvases.apps.CanvasesConfig',
     'knowledge.apps.KnowledgeConfig',
     'messaging.apps.MessagingConfig',
+    'projects.apps.ProjectsConfig',
     'realtime.apps.RealtimeConfig',
     'users.apps.UsersConfig',
-    'workflows.apps.WorkflowsConfig',
 ]
 
 MIDDLEWARE = [

@@ -27,7 +27,7 @@ class Migration(migrations.Migration):
                 ('is_core', models.BooleanField(default=False, help_text='Identifies if this is a central concept of the research.')),
                 ('semantic_category', models.CharField(blank=True, help_text="e.g., 'Methodology', 'Theory', 'Technology'.", max_length=100, null=True)),
                 ('status', models.CharField(choices=[('USER_DRAFT', 'User Draft'), ('AI_EXTRACTED', 'AI Extracted'), ('LOCKED', 'Locked'), ('ON_HOLD', 'On Hold'), ('ARCHIVED', 'Archived')], default='AI_EXTRACTED', max_length=20)),
-                ('content_type', models.ForeignKey(help_text='The model type of the owner (Workflows, Resources, etc.)', on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
+                ('content_type', models.ForeignKey(help_text='The model type of the owner (Projects, Resources, etc.)', on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
             ],
             options={
                 'verbose_name': 'Topic Keyword',
@@ -64,7 +64,7 @@ class Migration(migrations.Migration):
                 ('boundary_type', models.CharField(choices=[('INCLUSION', 'Inclusion'), ('EXCLUSION', 'Exclusion')], default='INCLUSION', max_length=20)),
                 ('rationale', models.TextField(help_text="The reasoning behind this boundary (originally 'value').")),
                 ('status', models.CharField(choices=[('USER_DRAFT', 'User Draft'), ('AI_EXTRACTED', 'AI Extracted'), ('LOCKED', 'Locked'), ('ON_HOLD', 'On Hold'), ('ARCHIVED', 'Archived')], default='AI_EXTRACTED', max_length=20)),
-                ('content_type', models.ForeignKey(help_text='The model type of the owner (Workflows, Resources, etc.)', on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
+                ('content_type', models.ForeignKey(help_text='The model type of the owner (Projects, Resources, etc.)', on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
             ],
             options={
                 'verbose_name': 'Topic Scope Element',
