@@ -2,7 +2,8 @@ import logging
 
 from adrf.views import APIView
 from asgiref.sync import sync_to_async
-from core.utils import get_serialized_data
+from core.utils import (get_serialized_data, get_serialized_data_by_id,
+                        update_serialized_data_by_id)
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
@@ -33,6 +34,20 @@ class ProjectView(ProjectBaseView):
 
         data = await sync_to_async(get_serialized_data)({'user_id': user.id}, ResearchProject, ProjectSerialize, many=True)
         return Response(data, status=status.HTTP_200_OK)
+
+
+class ProjectDetailView(ProjectBaseView):
+    async def get(self, request, project_id):
+        data = await sync_to_async(get_serialized_data_by_id)(project_id, ResearchProject, ProjectSerialize)
+        return Response(data, status=status.HTTP_200_OK)
+
+    async def put(self, request, project_id):
+        request_data = request.data
+        try:
+            data = await sync_to_async(update_serialized_data_by_id)(project_id, request_data, ResearchProject, ProjectSerialize)
+            return Response(data, status=status.HTTP_200_OK)
+        except Exception as errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ChatHistoryEntryView(ProjectBaseView):

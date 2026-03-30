@@ -5,8 +5,8 @@ This module organizes views by ISP (Information Search Process) stages.
 
 # Base / Shared Views
 # These views are stage-agnostic (e.g., chat history is used everywhere)
-from .base import (ChatHistoryEntryView, ProjectView, ReflectionLogView,
-                   SessionReflectionLogView)
+from .base import (ChatHistoryEntryView, ProjectDetailView, ProjectView,
+                   ReflectionLogView, SessionReflectionLogView)
 # Exploration Stage Views (Placeholders for next phase)
 # Specifically for Canvas & Resource Mapping
 from .exploration import (ConceptualNodesRecommendationView,
@@ -20,6 +20,7 @@ __all__ = [
     # base
     'ChatHistoryEntryView',
     'ProjectView',
+    'ProjectDetailView',
     'ReflectionLogView',
     'SessionReflectionLogView',
     # initiation
