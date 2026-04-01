@@ -10,6 +10,7 @@ class AgentConfigSerializer(ModelSerializer):
     promptTemplate = serializers.CharField(source='prompt_template')
     templateVariables = serializers.JSONField(source='template_variables')
     outputSchema = serializers.JSONField(source='output_schema')
+    llmParameters = serializers.JSONField(source='llm_parameters')
 
     class Meta:
         model = AgentRoleConfig
@@ -21,6 +22,7 @@ class AgentConfigSerializer(ModelSerializer):
             'systemPrompt',
             'promptTemplate',
             'templateVariables',
-            'outputSchema'
+            'outputSchema',
+            'llmParameters'
         )
         read_only_fields = ('id', 'createdAt', 'updatedAt')
