@@ -65,9 +65,11 @@ class ResearchProject(BaseModel):
         help_text="Current ISP phase (DEFINITION, EXPLORATION, etc.)."
     )
 
-    # --- Metadata ---
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    agents = models.ManyToManyField(
+        'agents.AgentRoleConfig',
+        related_name='project',
+        through='agents.AgentProjectRelation',
+    )
 
     def __str__(self):
         return f"Project: {self.id} - Stage: {self.current_stage}"

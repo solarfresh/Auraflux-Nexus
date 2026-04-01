@@ -1,20 +1,17 @@
 import uuid
 
 from django.db import models
+from core.models import BaseModel
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 
-class AgentRoleConfig(models.Model):
+class AgentRoleConfig(BaseModel):
     """
     Defines the specific role, behavior, and LLM parameters for an agent type
     (e.g., 'Dichotomy Suggester', 'Scope Summarizer').
     """
-    id = models.UUIDField(
-        primary_key=True,
-        editable=False,
-        default=uuid.uuid4,
-        help_text="Unique identifier for the agent role configuration."
-    )
-
     name = models.CharField(
         max_length=100,
         unique=True,
@@ -51,9 +48,33 @@ class AgentRoleConfig(models.Model):
         help_text="Specific runtime parameters for the LLM call (e.g., temperature, top_p, max_tokens)."
     )
 
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        help_text="The ID of the user owning this project."
+    )
+
+    projects = models.ManyToManyField(
+        'projects.ResearchProject',
+        related_name='agent',
+        through='AgentProjectRelation',
+    )
+
     class Meta:
         verbose_name = "Agent Role Configuration"
         verbose_name_plural = "Agent Role Configurations"
 
     def __str__(self):
         return self.name
+
+
+class AgentProjectRelation(BaseModel):
+
+    agent = models.ForeignKey(
+        'AgentRoleConfig',
+        on_delete=models.CASCADE
+    )
+    project = models.ForeignKey(
+        'projects.ResearchProject',
+        on_delete=models.CASCADE
+    )
