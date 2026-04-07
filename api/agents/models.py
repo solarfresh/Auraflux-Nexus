@@ -1,8 +1,13 @@
 import uuid
+import os
 
 from django.db import models
 from core.models import BaseModel
 from django.contrib.auth import get_user_model
+from core.constants import ConnectStatus
+from agents.constants import ProviderType
+from cryptography.fernet import Fernet
+from django.conf import settings
 
 User = get_user_model()
 
@@ -78,3 +83,74 @@ class AgentProjectRelation(BaseModel):
         'projects.ResearchProject',
         on_delete=models.CASCADE
     )
+
+
+class ModelProvider(models.Model):
+    # --- Engine Identity ---
+    name = models.CharField(max_length=100)
+    provider_type = models.CharField(
+        max_length=20,
+        choices=ProviderType.choices,
+        default=ProviderType.GOOGLE
+    )
+
+    # --- Infrastructure & Security ---
+    _encrypted_api_key = models.TextField(db_column='api_key', blank=True, null=True)
+    base_url = models.URLField(blank=True, null=True)
+
+    # --- Diagnostics (Rule 14: Pulse) ---
+    status = models.CharField(
+        max_length=20,
+        choices=ConnectStatus.choices,
+        default=ConnectStatus.UNVERIFIED
+    )
+    # latency_ms = models.PositiveIntegerField(blank=True, null=True)
+    last_verified_at = models.DateTimeField(blank=True, null=True)
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        help_text="The ID of the user owning this provider."
+    )
+
+    # --- Audit ---
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} ({self.provider_type})"
+
+    # --- Security Logic (Cognitive Sovereignty) ---
+
+    def _get_fernet(self):
+        key = os.getenv('ENCRYPTION_KEY_64', settings.SECRET_KEY[:32].encode('utf-8').ljust(32, b'='))
+        import base64
+        if isinstance(key, str):
+            key = key.encode()
+        return Fernet(base64.urlsafe_b64encode(key[:32]))
+
+    def set_api_key(self, raw_key: str):
+        if not raw_key:
+            self._encrypted_api_key = None
+        else:
+            fernet = self._get_fernet()
+            self._encrypted_api_key = fernet.encrypt(raw_key.encode()).decode()
+
+    def get_api_key(self) -> str:
+        if not self._encrypted_api_key:
+            return ""
+        try:
+            fernet = self._get_fernet()
+            return fernet.decrypt(self._encrypted_api_key.encode()).decode()
+        except Exception:
+            return "DECRYPTION_ERROR"
+
+    @property
+    def api_key_fingerprint(self):
+        raw = self.get_api_key()
+        if raw and raw != "DECRYPTION_ERROR":
+            return f"••••{raw[-4:]}"
+        return None

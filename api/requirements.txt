@@ -21,6 +21,7 @@ Cython==3.2.4
 defusedxml==0.7.1
 Django==5.2.11
 django-cors-headers==4.9.0
+django-encryption==0.3.48
 django-redis==6.0.0
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1

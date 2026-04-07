@@ -12,6 +12,13 @@ class FeasibilityStatus(models.TextChoices):
     LOW = 'LOW', _('Low')
 
 
+class ConnectStatus(models.TextChoices):
+    HEALTHY = 'HEALTHY', _('Healthy')
+    UNSTABLE = 'UNSTABLE', _('Unstable')
+    DISCONNECTED = 'DISCONNECTED', _('Disconnected')
+    UNVERIFIED = 'UNVERIFIED', _('Unverified')
+
+
 class ParticipantRole(models.TextChoices):
     """
     Standardized roles for communication and logging.
