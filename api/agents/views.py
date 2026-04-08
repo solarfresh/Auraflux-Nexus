@@ -59,7 +59,7 @@ class ModelProviderView(APIView):
     async def post(self, request):
         user = request.user
         request_data = request.data
-        request_data['user_id'] = user.id
+        request_data['user'] = str(user.id)
         try:
             data = await sync_to_async(create_serialized_data)(request_data, ModelProviderSerializer)
             return Response(data, status=status.HTTP_200_OK)

@@ -85,7 +85,7 @@ class AgentProjectRelation(BaseModel):
     )
 
 
-class ModelProvider(models.Model):
+class ModelProvider(BaseModel):
     # --- Engine Identity ---
     name = models.CharField(max_length=100)
     provider_type = models.CharField(

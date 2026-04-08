@@ -31,8 +31,8 @@ class AgentConfigSerializer(ModelSerializer):
 class ModelProviderSerializer(ModelSerializer):
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
-    providerType = serializers.CharField(source='provider_type')
-    baseUrl = serializers.URLField(source='base_url', required=False)
+    type = serializers.CharField(source='provider_type')
+    baseUrl = serializers.URLField(source='base_url', required=False, allow_blank=True)
     lastVerifiedAt = serializers.DateTimeField(source='last_verified_at', read_only=True)
     apiKeyFingerprint = serializers.ReadOnlyField(source='api_key_fingerprint')
     apiKey = serializers.CharField(
@@ -46,10 +46,13 @@ class ModelProviderSerializer(ModelSerializer):
     class Meta:
         model = ModelProvider
         fields = [
-            'id', 'name', 'providerType', 'apiKey', 'apiKeyFingerprint',
-            'baseUrl', 'status', 'lastVerifiedAt',
+            'id', 'name', 'type', 'apiKey', 'apiKeyFingerprint',
+            'baseUrl', 'status', 'user', 'lastVerifiedAt',
             'createdAt', 'updatedAt'
         ]
+        extra_kwargs = {
+            'user': {'write_only': True},
+        }
 
     def create(self, validated_data):
         api_key = validated_data.pop('api_key', None)

@@ -13,9 +13,9 @@ class FeasibilityStatus(models.TextChoices):
 
 
 class ConnectStatus(models.TextChoices):
-    HEALTHY = 'HEALTHY', _('Healthy')
-    UNSTABLE = 'UNSTABLE', _('Unstable')
-    DISCONNECTED = 'DISCONNECTED', _('Disconnected')
+    IDLE = 'IDLE', _('Idle')
+    ACTIVE = 'ACTIVE', _('Active')
+    ERROR = 'ERROR', _('Error')
     UNVERIFIED = 'UNVERIFIED', _('Unverified')
 
 
