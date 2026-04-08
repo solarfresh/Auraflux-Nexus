@@ -85,6 +85,14 @@ class AgentProjectRelation(BaseModel):
     )
 
 
+class ModelFamilies(BaseModel):
+    name = models.CharField(max_length=100, unique=True)
+    display_name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+    input_token_limit = models.PositiveIntegerField()
+    output_token_limit = models.PositiveIntegerField()
+
+
 class ModelProvider(BaseModel):
     # --- Engine Identity ---
     name = models.CharField(max_length=100)
@@ -104,13 +112,21 @@ class ModelProvider(BaseModel):
         choices=ConnectStatus.choices,
         default=ConnectStatus.UNVERIFIED
     )
-    # latency_ms = models.PositiveIntegerField(blank=True, null=True)
+    latency_ms = models.PositiveIntegerField(blank=True, null=True)
     last_verified_at = models.DateTimeField(blank=True, null=True)
 
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         help_text="The ID of the user owning this provider."
+    )
+    supported_families = models.ManyToManyField(
+        ModelFamilies,
+        blank=True
+    )
+    active_agent = models.ManyToManyField(
+        AgentRoleConfig,
+        blank=True
     )
 
     # --- Audit ---
@@ -154,3 +170,7 @@ class ModelProvider(BaseModel):
         if raw and raw != "DECRYPTION_ERROR":
             return f"••••{raw[-4:]}"
         return None
+
+    @property
+    def active_agent_count(self):
+        return self.active_agent.count()
