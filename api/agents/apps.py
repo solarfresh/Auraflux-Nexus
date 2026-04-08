@@ -33,7 +33,7 @@ async def _async_initialize_client_manager():
     for model_name, config_dict in settings.LLM_MODEL_CONFIGS.items():
         llm_config = ModelConfig(
             name=model_name,
-            mode=config_dict['MODE'],
+            provider_type=config_dict['MODE'],
             base_url=config_dict.get('BASE_URL', None),
             api_key=config_dict.get('API_KEY'),
         )

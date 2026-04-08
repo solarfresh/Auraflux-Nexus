@@ -1,9 +1,13 @@
 import json
 import logging
 from typing import Any, Dict, Optional, Tuple
+from uuid import uuid4
 
+from agents.constants import ProviderType
 from asgiref.sync import async_to_sync
 from auraflux_core.agents import AGENT_REGISTRY, Agent
+from auraflux_core.core.clients.client_manager import ClientManager
+from auraflux_core.core.schemas.clients import ClientConfig, ModelConfig
 from auraflux_core.core.schemas.messages import Message
 
 logger = logging.getLogger(__name__)
@@ -144,3 +148,12 @@ def get_agent_instance(class_name: Any, agent_role_name: str) -> Tuple[Agent, An
     except Exception as e:
         logger.critical("Failed to create agent instance for role %s: %s", agent_role_name, str(e))
         raise e
+
+async def measure_model_provider_connection(provider_type: str, api_key: str):
+    model_id = str(uuid4())
+    model_config = [ModelConfig(id=model_id, name='test', provider_type=provider_type, api_key=api_key)]
+    client_config = ClientConfig(models=model_config)
+    client_manager = ClientManager(client_config)
+    await client_manager.instantiate_handlers()
+
+    return client_manager.get_available_models(model_id=model_id)
