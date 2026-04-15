@@ -6,14 +6,15 @@ from core.celery_app import celery_app
 from django.core.cache import cache
 from messaging.constants import (AgentRequest, InitiationEAStreamRequest,
                                  PersistChatEntry, TopicRefinementAgentRequest,
-                                 TopicStabilityUpdated)
+                                 TopicStabilityUpdated, UpdateModelFamilies)
 from messaging.tasks import publish_event
 from realtime.constants import INITIATION_EA_STREAM
 from realtime.utils import send_ws_notification
 
-from .models import AgentRoleConfig
+from .models import AgentRoleConfig, ModelProvider, ModelFamilies
 from .utils import (get_agent_instance, get_agent_response,
-                    get_handle_topic_refinement_agent_request_key)
+                    get_handle_topic_refinement_agent_request_key,
+                    measure_model_provider_connection)
 
 logger = logging.getLogger(__name__)
 
@@ -290,3 +291,32 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         queue=TopicRefinementAgentRequest.queue
     )
     logger.info("Task %s: Published %s event to trigger TR Agent.", task_id, TopicRefinementAgentRequest.name)
+
+@celery_app.task(name=UpdateModelFamilies.name, ignore_result=True)
+def update_model_families(event_type: str, payload: dict):
+    task_id = update_model_families.request.id
+    provider_id = payload.get('provider_id', '')
+    logger.info("Task %s: Starting model family update for provider %s.", task_id, provider_id)
+
+    model_provider = ModelProvider.objects.get(id=provider_id)
+    available_models = measure_model_provider_connection(
+        provider_id=str(model_provider.id),
+        provider_type=model_provider.provider_type,
+        api_key=model_provider.get_api_key(),
+        model_class=ModelProvider
+    )
+
+    if available_models is None:
+        return
+
+    for model in available_models.get('models', []):
+        family, created = ModelFamilies.objects.get_or_create(
+            name=model['name'],
+            display_name=model['display_name'],
+            description=model['description'],
+            input_token_limit=model['input_token_limit'],
+            output_token_limit=model['output_token_limit']
+        )
+
+        if created:
+            model_provider.supported_families.add(family)

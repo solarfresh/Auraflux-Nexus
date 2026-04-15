@@ -29,6 +29,8 @@ class AgentConfigSerializer(ModelSerializer):
 
 
 class ModelFamiliesSerializer(ModelSerializer):
+    displayName = serializers.CharField(source='display_name')
+
     class Meta:
         model = ModelFamilies
         fields = '__all__'
@@ -40,7 +42,7 @@ class ModelProviderSerializer(ModelSerializer):
     type = serializers.CharField(source='provider_type')
     baseUrl = serializers.URLField(source='base_url', required=False, allow_blank=True)
     latencyMs = serializers.IntegerField(source='latency_ms')
-    lastVerifiedAt = serializers.DateTimeField(source='last_verified_at', read_only=True)
+    lastVerifiedAt = serializers.DateTimeField(source='last_verified_at')
     apiKeyFingerprint = serializers.ReadOnlyField(source='api_key_fingerprint')
     apiKey = serializers.CharField(
         source='api_key',

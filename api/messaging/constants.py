@@ -41,3 +41,8 @@ class TopicRefinementAgentRequest:
 class TopicStabilityUpdated:
     name = 'update_topic_stability_data'
     queue = Queue.DEFAULT
+
+
+class UpdateModelFamilies:
+    name = "update_model_families"
+    queue = Queue.DEFAULT

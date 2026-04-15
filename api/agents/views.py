@@ -11,6 +11,8 @@ from core.utils import (create_serialized_data, get_serialized_data,
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
+from messaging.constants import UpdateModelFamilies
+from messaging.tasks import publish_event
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -62,6 +64,14 @@ class ModelProviderView(APIView):
         request_data['user'] = str(user.id)
         try:
             data = await sync_to_async(create_serialized_data)(request_data, ModelProviderSerializer)
+            publish_event.delay(
+                event_type=UpdateModelFamilies.name,
+                payload={
+                    'provider_id': data['id'],
+                },
+                queue=UpdateModelFamilies.queue
+            )
+
             return Response(data, status=status.HTTP_200_OK)
         except Exception as errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
@@ -107,6 +117,14 @@ class ModelProviderDetailView(APIView):
         request_data = request.data
         try:
             data = await sync_to_async(update_serialized_data_by_id)(provider_id, request_data, ModelProvider, ModelProviderSerializer)
+            publish_event.delay(
+                event_type=UpdateModelFamilies.name,
+                payload={
+                    'provider_id': data['id'],
+                },
+                queue=UpdateModelFamilies.queue
+            )
+
             return Response(data, status=status.HTTP_200_OK)
         except Exception as errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)

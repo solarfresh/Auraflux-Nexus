@@ -149,8 +149,9 @@ def get_agent_instance(class_name: Any, agent_role_name: str) -> Tuple[Agent, An
         logger.critical("Failed to create agent instance for role %s: %s", agent_role_name, str(e))
         raise e
 
-def measure_model_provider_connection(provider_type: str, api_key: str, provider_id: str = '', model_class=None):
+def measure_model_provider_connection(provider_type: str, api_key: str, provider_id: str = '', model_class=None) -> Dict[str, Any] | None:
     if model_class is None:
+        logger.warning("Model class not provided for measuring model provider connection. Defaulting to ModelProvider.")
         return
 
     if provider_id:
@@ -158,7 +159,7 @@ def measure_model_provider_connection(provider_type: str, api_key: str, provider
         model_config = [ModelConfig(
             id=provider_id,
             name=model_provider.name,
-            provider_type=provider_type,
+            provider_type=provider_type.upper(),
             api_key=model_provider.get_api_key()
         )]
     else:

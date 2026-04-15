@@ -245,15 +245,15 @@ INITIAL_ADMIN_EMAIL = os.environ.get('INITIAL_ADMIN_EMAIL', 'admin@example.com')
 
 LLM_MODEL_CONFIGS = {
     'gemini-2.0-flash': {
-        'MODE': 'gemini',
+        'MODE': 'GOOGLE',
         'API_KEY': os.environ.get('GOOGLE_GENAI_API_KEY', ''),
     },
     'gemini-2.5-flash': {
-        'MODE': 'gemini',
+        'MODE': 'GOOGLE',
         'API_KEY': os.environ.get('GOOGLE_GENAI_API_KEY', ''),
     },
     'gemini-3-flash-preview': {
-        'MODE': 'gemini',
+        'MODE': 'GOOGLE',
         'API_KEY': os.environ.get('GOOGLE_GENAI_API_KEY', ''),
     }
 }
