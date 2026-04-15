@@ -60,6 +60,7 @@ class ModelProviderSerializer(ModelSerializer):
             'supportedFamilies', 'activeAgentCount', 'createdAt', 'updatedAt'
         ]
         extra_kwargs = {
+            'id': {'read_only': True},
             'user': {'write_only': True},
         }
 

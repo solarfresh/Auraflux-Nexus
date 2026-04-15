@@ -90,7 +90,8 @@ class ModelProviderAvailableView(APIView):
         request_data = request.data
         api_key = request_data.get('apiKey')
         provider_type = request_data.get('providerType')
-        available_models = await measure_model_provider_connection(provider_type, api_key)
+        provider_id = request_data.get('providerId', '')
+        available_models = await sync_to_async(measure_model_provider_connection)(provider_type, api_key, provider_id, ModelProvider)
         return Response(available_models, status=status.HTTP_200_OK)
 
 

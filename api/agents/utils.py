@@ -149,11 +149,24 @@ def get_agent_instance(class_name: Any, agent_role_name: str) -> Tuple[Agent, An
         logger.critical("Failed to create agent instance for role %s: %s", agent_role_name, str(e))
         raise e
 
-async def measure_model_provider_connection(provider_type: str, api_key: str):
-    model_id = str(uuid4())
-    model_config = [ModelConfig(id=model_id, name='test', provider_type=provider_type, api_key=api_key)]
+def measure_model_provider_connection(provider_type: str, api_key: str, provider_id: str = '', model_class=None):
+    if model_class is None:
+        return
+
+    if provider_id:
+        model_provider = model_class.objects.get(id=provider_id)
+        model_config = [ModelConfig(
+            id=provider_id,
+            name=model_provider.name,
+            provider_type=provider_type,
+            api_key=model_provider.get_api_key()
+        )]
+    else:
+        provider_id = str(uuid4())
+        model_config = [ModelConfig(id=provider_id, name='test', provider_type=provider_type, api_key=api_key)]
+
     client_config = ClientConfig(models=model_config)
     client_manager = ClientManager(client_config)
-    await client_manager.instantiate_handlers()
+    async_to_sync(client_manager.instantiate_handlers)()
 
-    return client_manager.get_available_models(model_id=model_id)
+    return client_manager.get_available_models(model_id=provider_id)
