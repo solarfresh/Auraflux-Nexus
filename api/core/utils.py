@@ -3,6 +3,13 @@ from uuid import UUID
 
 from django.conf import settings
 
+def create_serialized_data(data: Dict[str, Any], serializer_class):
+    serializer = serializer_class(data=data)
+    if serializer.is_valid():
+        serializer.save()
+        return serializer.data
+    else:
+        raise serializer.errors
 
 def get_serialized_data(query: Dict, model_class, serializer_class, many=True):
     instances = model_class.objects.filter(**query).all()

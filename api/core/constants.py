@@ -12,6 +12,13 @@ class FeasibilityStatus(models.TextChoices):
     LOW = 'LOW', _('Low')
 
 
+class ConnectStatus(models.TextChoices):
+    IDLE = 'IDLE', _('Idle')
+    ACTIVE = 'ACTIVE', _('Active')
+    ERROR = 'ERROR', _('Error')
+    UNVERIFIED = 'UNVERIFIED', _('Unverified')
+
+
 class ParticipantRole(models.TextChoices):
     """
     Standardized roles for communication and logging.
