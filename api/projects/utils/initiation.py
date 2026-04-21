@@ -20,7 +20,7 @@ def atomic_read_and_lock_initiation_data(project_id: UUID, user_id: UUID) -> tup
         # Note: Must use select_for_update() for locking
         project = get_object_or_404(
             ResearchProject.objects.select_for_update(),
-            project_id=project_id,
+            id=project_id,
             user_id=user_id
         )
 

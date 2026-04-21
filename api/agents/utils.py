@@ -1,9 +1,8 @@
 import json
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
-from agents.constants import ProviderType
 from asgiref.sync import async_to_sync
 from auraflux_core.agents import AGENT_REGISTRY, Agent
 from auraflux_core.core.clients.client_manager import ClientManager
@@ -104,6 +103,23 @@ def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, re
 
 def get_handle_topic_refinement_agent_request_key(project_id: str) -> str:
     return f"handle_topic_refinement_agent_request:{project_id}"
+
+
+def get_provider_configs() -> List:
+    from agents.models import ModelProvider
+
+    provider_configs = []
+    providers = ModelProvider.objects.all()
+    for provider in providers:
+        provider_config = ProviderConfig(
+            id=str(provider.id),
+            type=provider.provider_type,
+            base_url=provider.base_url,
+            api_key=provider.get_api_key(),
+        )
+        provider_configs.append(provider_config)
+
+    return provider_configs
 
 def set_global_client_manager(client_manager: Any):
     """Sets the initialized ClientManager instance."""

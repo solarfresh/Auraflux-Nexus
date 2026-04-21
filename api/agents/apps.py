@@ -1,13 +1,12 @@
 import logging
 
-from asgiref.sync import async_to_sync
+from asgiref.sync import async_to_sync, sync_to_async
 from auraflux_core.core.clients.client_manager import ClientManager
 from auraflux_core.core.schemas.clients import ClientConfig, ProviderConfig
 from celery.signals import worker_process_init
 from django.apps import AppConfig
-from django.conf import settings
 
-from .utils import set_global_client_manager
+from .utils import get_provider_configs, set_global_client_manager
 
 logger = logging.getLogger(__name__)
 
@@ -23,20 +22,9 @@ async def _async_initialize_client_manager():
     This method is called after the application is ready and migrations have run.
     It reads settings, converts them to Pydantic models, and initializes the ClientManager.
     """
-    from .models import ModelProvider
-
-    provider_configs = []
-    providers = ModelProvider.objects.all()
-    for provider in providers:
-        provider_config = ProviderConfig(
-            id=provider.id,
-            type=provider.provider_type,
-            base_url=provider.base_url,
-            api_key=provider.get_api_key(),
-        )
-        provider_configs.append(provider_config)
 
     # Initialize and set global ClientManager
+    provider_configs = await sync_to_async(get_provider_configs)()
     if provider_configs:
         try:
             client_config = ClientConfig(providers=provider_configs, initialize_mode='run_forever')
