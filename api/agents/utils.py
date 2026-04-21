@@ -1,13 +1,12 @@
 import json
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
-from agents.constants import ProviderType
 from asgiref.sync import async_to_sync
 from auraflux_core.agents import AGENT_REGISTRY, Agent
 from auraflux_core.core.clients.client_manager import ClientManager
-from auraflux_core.core.schemas.clients import ClientConfig, ModelConfig
+from auraflux_core.core.schemas.clients import ClientConfig, ProviderConfig
 from auraflux_core.core.schemas.messages import Message
 
 logger = logging.getLogger(__name__)
@@ -105,6 +104,23 @@ def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, re
 def get_handle_topic_refinement_agent_request_key(project_id: str) -> str:
     return f"handle_topic_refinement_agent_request:{project_id}"
 
+
+def get_provider_configs() -> List:
+    from agents.models import ModelProvider
+
+    provider_configs = []
+    providers = ModelProvider.objects.all()
+    for provider in providers:
+        provider_config = ProviderConfig(
+            id=str(provider.id),
+            type=provider.provider_type,
+            base_url=provider.base_url,
+            api_key=provider.get_api_key(),
+        )
+        provider_configs.append(provider_config)
+
+    return provider_configs
+
 def set_global_client_manager(client_manager: Any):
     """Sets the initialized ClientManager instance."""
     global _GLOBAL_CLIENT_MANAGER
@@ -138,7 +154,7 @@ def get_agent_instance(class_name: Any, agent_role_name: str) -> Tuple[Agent, An
             **role_config.llm_parameters
         }
 
-        agent_registry = AGENT_REGISTRY[agent_role_name]
+        agent_registry = AGENT_REGISTRY[agent_role_name] if agent_role_name in AGENT_REGISTRY else AGENT_REGISTRY['default']
         agent = agent_registry.agent_class(
             config=agent_registry.config_class(**agent_config),
             client_manager=client_manager
@@ -156,18 +172,17 @@ def measure_model_provider_connection(provider_type: str, api_key: str, provider
 
     if provider_id:
         model_provider = model_class.objects.get(id=provider_id)
-        model_config = [ModelConfig(
+        provider_config = [ProviderConfig(
             id=provider_id,
-            name=model_provider.name,
             provider_type=provider_type.upper(),
             api_key=model_provider.get_api_key()
         )]
     else:
         provider_id = str(uuid4())
-        model_config = [ModelConfig(id=provider_id, name='test', provider_type=provider_type, api_key=api_key)]
+        provider_config = [ProviderConfig(id=provider_id, name='test', provider_type=provider_type, api_key=api_key)]
 
-    client_config = ClientConfig(models=model_config)
+    client_config = ClientConfig(models=provider_config)
     client_manager = ClientManager(client_config)
     async_to_sync(client_manager.instantiate_handlers)()
 
-    return client_manager.get_available_models(model_id=provider_id)
+    return client_manager.get_available_models(provider_id=provider_id)

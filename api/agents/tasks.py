@@ -77,8 +77,8 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
     2. Publishes TOPIC_STABILITY_UPDATED event for persisting structured data (Sidebar update).
     3. Publishes a new event to trigger the Incremental Summarizer Agent.
     """
-    session_id = payload.get('session_id', '')
-    lock_key = get_handle_topic_refinement_agent_request_key(session_id)
+    project_id = payload.get('project_id', '')
+    lock_key = get_handle_topic_refinement_agent_request_key(project_id)
     if cache.get(lock_key):
         return
     else:
@@ -106,7 +106,7 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
         logger.error("Task %s: Missing chat history for TR Agent. Aborting.", task_id)
         return
 
-    logger.info("Task %s: Starting TR Agent execution for session %s.", task_id, session_id)
+    logger.info("Task %s: Starting TR Agent execution for project %s.", task_id, project_id)
 
     try:
         tr_agent_output_json = get_agent_response(
@@ -118,7 +118,7 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
     except Exception:
         cache.delete(lock_key)
 
-    logger.info("Task %s: Starting SUM Agent execution for session %s.", task_id, session_id)
+    logger.info("Task %s: Starting SUM Agent execution for project %s.", task_id, project_id)
 
     sum_agent_role_name = payload.get('sum_agent_role_name')
     rendered_data = {
@@ -142,7 +142,7 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
         cache.delete(lock_key)
 
     topic_stability_updated_payload = {
-        "session_id": session_id,
+        "project_id": project_id,
         'user_id': user_id,
         "new_stability_score": tr_agent_output_json.get('new_stability_score'),
         'is_topic_too_niche': tr_agent_output_json.get('is_topic_too_niche'),
@@ -174,7 +174,7 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
     task_id = handle_initiation_ea_stream_request_event.request.id
 
     # Extract necessary fields for EA (Dialogue focused)
-    session_id = payload.get('session_id')
+    project_id = payload.get('project_id')
     user_id = payload.get('user_id', None)
     user_message = payload.get('user_message')
     agent_role_name = payload.get('ea_agent_role_name')
@@ -183,7 +183,7 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
 
     current_chat_history_length = len(current_chat_history)
 
-    if not all([session_id, user_message]):
+    if not all([project_id, user_message]):
         logger.error("Task %s: Missing critical fields in payload. Aborting.", task_id)
         return
 
@@ -195,10 +195,10 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         logger.error("Task %s: Missing user_id in payload. Aborting.", task_id)
         return
 
-    logger.info("Task %s: Starting EA streaming for session %s.", task_id, session_id)
+    logger.info("Task %s: Starting EA streaming for session %s.", task_id, project_id)
 
     persist_chat_entry_payload = {
-        "session_id": session_id,
+        "project_id": project_id,
         "role": "user",
         "content": user_message,
         "name": "User",
@@ -242,10 +242,10 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         )
         logger.info("Task %s: EA streaming complete.", task_id)
     except Exception as e:
-        logger.critical("Task %s: EA streaming failed for session %s: %s", task_id, session_id, str(e))
+        logger.critical("Task %s: EA streaming failed for project %s: %s", task_id, project_id, str(e))
 
     persist_chat_entry_payload = {
-        "session_id": session_id,
+        "project_id": project_id,
         "role": "system",
         "content": full_response_text,
         "name": agent_role_name,
@@ -271,7 +271,7 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
         for msg in recent_turns_of_chat_history
     ]
     tr_agent_request_payload = {
-        'session_id': session_id,
+        'project_id': project_id,
         'tr_agent_role_name': 'ResearchTopicRefinementAgent',
         'sum_agent_role_name': 'IncrementalConversationSummarizer',
         'user_id': user_id,
