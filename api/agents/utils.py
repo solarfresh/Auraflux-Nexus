@@ -154,7 +154,7 @@ def get_agent_instance(class_name: Any, agent_role_name: str) -> Tuple[Agent, An
             **role_config.llm_parameters
         }
 
-        agent_registry = AGENT_REGISTRY[agent_role_name]
+        agent_registry = AGENT_REGISTRY[agent_role_name] if agent_role_name in AGENT_REGISTRY else AGENT_REGISTRY['default']
         agent = agent_registry.agent_class(
             config=agent_registry.config_class(**agent_config),
             client_manager=client_manager
