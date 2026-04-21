@@ -7,7 +7,7 @@ from agents.constants import ProviderType
 from asgiref.sync import async_to_sync
 from auraflux_core.agents import AGENT_REGISTRY, Agent
 from auraflux_core.core.clients.client_manager import ClientManager
-from auraflux_core.core.schemas.clients import ClientConfig, ModelConfig
+from auraflux_core.core.schemas.clients import ClientConfig, ProviderConfig
 from auraflux_core.core.schemas.messages import Message
 
 logger = logging.getLogger(__name__)
@@ -156,18 +156,17 @@ def measure_model_provider_connection(provider_type: str, api_key: str, provider
 
     if provider_id:
         model_provider = model_class.objects.get(id=provider_id)
-        model_config = [ModelConfig(
+        provider_config = [ProviderConfig(
             id=provider_id,
-            name=model_provider.name,
             provider_type=provider_type.upper(),
             api_key=model_provider.get_api_key()
         )]
     else:
         provider_id = str(uuid4())
-        model_config = [ModelConfig(id=provider_id, name='test', provider_type=provider_type, api_key=api_key)]
+        provider_config = [ProviderConfig(id=provider_id, name='test', provider_type=provider_type, api_key=api_key)]
 
-    client_config = ClientConfig(models=model_config)
+    client_config = ClientConfig(models=provider_config)
     client_manager = ClientManager(client_config)
     async_to_sync(client_manager.instantiate_handlers)()
 
-    return client_manager.get_available_models(model_id=provider_id)
+    return client_manager.get_available_models(provider_id=provider_id)

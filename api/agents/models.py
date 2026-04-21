@@ -50,7 +50,6 @@ class AgentRoleConfig(BaseModel):
         help_text="The JSON schema defining the required output structure for the LLM response."
     )
 
-    # Runtime generation parameters (overrides/additions to ModelConfig)
     llm_parameters = models.JSONField(
         default=dict,
         blank=True,
