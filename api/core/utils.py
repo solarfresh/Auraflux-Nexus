@@ -3,13 +3,17 @@ from uuid import UUID
 
 from django.conf import settings
 
-def create_serialized_data(data: Dict[str, Any], serializer_class):
+def create_serialized_data(data: Dict[str, Any], serializer_class, **save_kwargs):
     serializer = serializer_class(data=data)
     if serializer.is_valid():
-        serializer.save()
+        serializer.save(**save_kwargs)
         return serializer.data
     else:
         raise serializer.errors
+
+def delete_instance_by_query(query: Dict, model_class):
+    instance = model_class.objects.get(**query)
+    instance.delete()
 
 def get_serialized_data(query: Dict, model_class, serializer_class, many=True):
     instances = model_class.objects.filter(**query).all()
@@ -38,3 +42,15 @@ def update_serialized_data_by_id(id: UUID, data: Dict[str, Any], model_class, se
     else:
         raise serializer.errors
 
+def update_serialized_data_by_query(query: Dict, data: Dict[str, Any], model_class, serializer_class):
+    instance = model_class.objects.get(**query)
+    serializer = serializer_class(
+        instance=instance,
+        data=data,
+        partial=True
+    )
+    if serializer.is_valid():
+        serializer.save()
+        return serializer.data
+    else:
+        raise serializer.errors
