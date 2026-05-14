@@ -1,5 +1,5 @@
 from adrf.serializers import ModelSerializer, Serializer
-from canvases.constants import NodeType, NodeHandle
+from canvases.constants import EdgeType, NodeHandle, NodeType
 from canvases.models import ConceptualEdge, ConceptualNode
 from core.constants import EntityStatus
 from rest_framework import serializers
@@ -11,6 +11,7 @@ class PositionSerializer(Serializer):
 
 
 class ConceptualEdgeSerializer(ModelSerializer):
+    type = serializers.ChoiceField(choices=EdgeType.choices, source='edge_type', default=EdgeType.REF)
     sourceHandle = serializers.ChoiceField(choices=NodeHandle.choices, source='source_handle')
     targetHandle = serializers.ChoiceField(choices=NodeHandle.choices, source='target_handle')
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
@@ -24,17 +25,32 @@ class ConceptualEdgeSerializer(ModelSerializer):
             'sourceHandle',
             'target',
             'targetHandle',
+            'label',
+            'type',
+            'evidence',
             'weight',
+            'rationale',
+            'metadata',
             'createdAt',
             'updatedAt'
         ]
 
 
 class ConceptualNodeSerializer(ModelSerializer):
+    # --- UI & Layout ---
     position = PositionSerializer(required=False)
     status = serializers.ChoiceField(choices=EntityStatus.choices, required=False)
-
     type = serializers.ChoiceField(choices=NodeType.choices, source='node_type')
+
+    # --- Knowledge & Anti-Hallucination ---
+    sourceRef = serializers.CharField(source='source_ref', allow_blank=True, required=False)
+    anchorId = serializers.PrimaryKeyRelatedField(
+        source='anchor',
+        queryset=ConceptualNode.objects.all(),
+        required=False,
+        allow_null=True
+    )
+
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
 
@@ -47,6 +63,10 @@ class ConceptualNodeSerializer(ModelSerializer):
             'position',
             'groundedness',
             'solidity',
+            'content',
+            'sourceRef',
+            'rationale',
+            'anchorId',
             'status',
             'createdAt',
             'updatedAt'
