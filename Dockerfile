@@ -3,7 +3,7 @@
 ##############################################################################
 FROM python:3.13-slim AS builder
 
-RUN sed -i 's/deb.debian.org/debian.csie.ntu.edu.tw/g' /etc/apt/sources.list.d/debian.sources
+# RUN sed -i 's/deb.debian.org/debian.csie.ntu.edu.tw/g' /etc/apt/sources.list.d/debian.sources
 
 # Set working directory
 COPY api /api
@@ -35,7 +35,7 @@ RUN python setup.py build_ext --inplace
 ##############################################################################
 FROM python:3.13-slim AS runtime
 
-RUN sed -i 's/deb.debian.org/debian.csie.ntu.edu.tw/g' /etc/apt/sources.list.d/debian.sources
+# RUN sed -i 's/deb.debian.org/debian.csie.ntu.edu.tw/g' /etc/apt/sources.list.d/debian.sources
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgraphviz-dev \

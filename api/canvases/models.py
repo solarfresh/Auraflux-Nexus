@@ -1,27 +1,55 @@
-from canvases.constants import NodeSolidity, NodeType
+from canvases.constants import EdgeType, NodeSolidity, NodeType
 from core.constants import EntityStatus
 from core.models import BaseModel, SpatialMixin
 from django.contrib.contenttypes.fields import (GenericForeignKey,
                                                 GenericRelation)
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from core.constants import EntityStatus
 
 
 class ConceptualNode(BaseModel):
     label = models.CharField(max_length=500)
     node_type = models.CharField(
         max_length=20,
-        choices=NodeType.choices
+        choices=NodeType.choices,
+        default=NodeType.CONCEPT
     )
     groundedness = models.IntegerField(
         default=5,
-        help_text=""
+        help_text="Health Score (0-10). Values < 4 trigger visual alarm in frontend."
     )
     solidity = models.CharField(
         max_length=20,
         choices=NodeSolidity.choices,
         default=NodeSolidity.PULSING
+    )
+
+    # --- Knowledge Content (Empirical Layer) ---
+    content = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Detailed snippet or content description."
+    )
+    source_ref = models.CharField(
+        max_length=1000,
+        blank=True,
+        null=True,
+        help_text="Grounding reference URL or document ID."
+    )
+
+    # --- AI Reasoning (Logic Layer) ---
+    rationale = models.TextField(
+        blank=True,
+        null=True,
+        help_text="AI's justification or reasoning for this node."
+    )
+    anchor = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='descendants',
+        help_text="Parent node for growth tracking/hierarchy."
     )
 
     content_type = models.ForeignKey(
@@ -52,11 +80,49 @@ class ConceptualNode(BaseModel):
 
 
 class ConceptualEdge(BaseModel):
-    source = models.UUIDField()
-    source_handle = models.CharField(blank=True, null=True)
-    target = models.UUIDField()
-    target_handle = models.CharField(blank=True, null=True)
-    weight = models.FloatField(default=1.0)
+    source = models.ForeignKey(
+        'ConceptualNode',
+        on_delete=models.CASCADE,
+        related_name='outgoing_edges'
+    )
+    target = models.ForeignKey(
+        'ConceptualNode',
+        on_delete=models.CASCADE,
+        related_name='incoming_edges'
+    )
+    source_handle = models.CharField(max_length=100, blank=True, null=True)
+    target_handle = models.CharField(max_length=100, blank=True, null=True)
+
+    # --- Metadata & Identification ---
+    label = models.CharField(max_length=255, blank=True, null=True)
+    edge_type = models.CharField(
+        max_length=20,
+        choices=EdgeType.choices,
+        default=EdgeType.REF
+    )
+
+    # --- Knowledge & Grounding (Empirical Layer) ---
+    evidence = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Logical justification for this link, crucial for Agentic Audit."
+    )
+    weight = models.FloatField(
+        default=1.0,
+        help_text="Strength of the relationship."
+    )
+
+    # --- AI Reasoning & Metadata (Logic Layer) ---
+    rationale = models.TextField(
+        blank=True,
+        null=True,
+        help_text="AI's reasoning behind establishing this connection."
+    )
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Scenario-specific data like timestamps, confidence scores, etc."
+    )
 
     canvas = models.ForeignKey(
         'ConceptualCanvas',
@@ -70,10 +136,13 @@ class ConceptualEdge(BaseModel):
         verbose_name_plural = "Conceptual Edges"
         constraints = [
             models.UniqueConstraint(
-                fields=['source', 'target', 'canvas'],
+                fields=['source', 'edge_type', 'target', 'canvas'],
                 name='unique_conceptual_edge_per_canvas'
             )
         ]
+
+    def __str__(self):
+        return f"{self.source.label} --[{self.edge_type}]--> {self.target.label}"
 
 
 class ConceptualCanvas(BaseModel):
