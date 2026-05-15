@@ -22,10 +22,10 @@ class NodeSolidity(models.TextChoices):
 class NodeHandle(models.TextChoices):
     """
     """
-    NORTH = 'n', _('North')
-    EAST = 'e', _('East')
-    WEST = 'w', _('West')
-    SOUTH = 's', _('South')
+    TOP = 'top', _('Top')
+    BOTTOM = 'bottom', _('Bottom')
+    LEFT = 'left', _('Left')
+    RIGHT = 'right', _('Right')
 
 
 class NodeType(models.TextChoices):

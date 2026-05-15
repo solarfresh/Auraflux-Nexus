@@ -101,7 +101,7 @@ class ConceptualEdgeView(APIView):
             return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             # Handle cases where update_serialized_data_by_query might raise 404
-            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(e, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @extend_schema(
         summary="Delete a conceptual edge",

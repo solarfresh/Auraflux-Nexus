@@ -136,7 +136,7 @@ class ConceptualEdge(BaseModel):
         verbose_name_plural = "Conceptual Edges"
         constraints = [
             models.UniqueConstraint(
-                fields=['source', 'target', 'canvas'],
+                fields=['source', 'edge_type', 'target', 'canvas'],
                 name='unique_conceptual_edge_per_canvas'
             )
         ]

@@ -2,6 +2,8 @@ from typing import Any, Dict
 from uuid import UUID
 
 from django.conf import settings
+from rest_framework.exceptions import ValidationError
+
 
 def create_serialized_data(data: Dict[str, Any], serializer_class, **save_kwargs):
     serializer = serializer_class(data=data)
@@ -9,7 +11,7 @@ def create_serialized_data(data: Dict[str, Any], serializer_class, **save_kwargs
         serializer.save(**save_kwargs)
         return serializer.data
     else:
-        raise serializer.errors
+        raise ValidationError(serializer.errors)
 
 def delete_instance_by_query(query: Dict, model_class):
     instance = model_class.objects.get(**query)
@@ -40,7 +42,7 @@ def update_serialized_data_by_id(id: UUID, data: Dict[str, Any], model_class, se
         serializer.save()
         return serializer.data
     else:
-        raise serializer.errors
+        raise ValidationError(serializer.errors)
 
 def update_serialized_data_by_query(query: Dict, data: Dict[str, Any], model_class, serializer_class):
     instance = model_class.objects.get(**query)
@@ -53,4 +55,4 @@ def update_serialized_data_by_query(query: Dict, data: Dict[str, Any], model_cla
         serializer.save()
         return serializer.data
     else:
-        raise serializer.errors
+        raise ValidationError(serializer.errors)
