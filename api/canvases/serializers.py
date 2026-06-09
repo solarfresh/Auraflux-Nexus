@@ -27,6 +27,7 @@ class ConceptualEdgeSerializer(ModelSerializer):
             'targetHandle',
             'label',
             'type',
+            'status',
             'evidence',
             'weight',
             'rationale',
