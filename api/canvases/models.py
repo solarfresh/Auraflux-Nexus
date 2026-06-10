@@ -100,6 +100,11 @@ class ConceptualEdge(BaseModel):
         choices=EdgeType.choices,
         default=EdgeType.REF
     )
+    status = models.CharField(
+        max_length=20,
+        choices=EntityStatus.choices,
+        default=EntityStatus.AI_EXTRACTED
+    )
 
     # --- Knowledge & Grounding (Empirical Layer) ---
     evidence = models.TextField(
