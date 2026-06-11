@@ -151,6 +151,7 @@ def get_conceptual_graph(canvas_id: str):
         on_graph_nodes[node.id] = node
 
     graph_instance = SimpleNamespace(
+        canvas_id=canvas_id,
         nodes={relation.node.id: relation.node for relation in canvas_node_relations},
         edges=on_canvas_edges
     )

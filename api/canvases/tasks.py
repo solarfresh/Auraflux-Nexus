@@ -99,6 +99,7 @@ def handle_recommend_conceptual_nodes_request(event_type: str, payload: dict):
         graph_nodes[node.id] = node
 
     graph_instance = SimpleNamespace(
+        canvas_id=canvas_id,
         nodes=graph_nodes,
         edges=on_canvas_edges
     )
