@@ -87,7 +87,11 @@ def handle_recommend_conceptual_nodes_request(event_type: str, payload: dict):
     on_canvas_str = "\n".join([f"- [{relation.node.node_type}] {relation.node.label} (ID: {relation.node.id})" for relation in canvas_node_relations])
     pool_str = "\n".join([f"- [{node.node_type}] {node.label} (ID: {node.id})" for node in on_pool_nodes])
 
-    on_canvas_edges = ConceptualEdge.objects.filter(canvas__id=canvas_id).all()
+    on_canvas_edges = ConceptualEdge.objects.filter(
+        canvas__id=canvas_id
+    ).select_related(
+        'source', 'target'
+    ).all()
 
     graph_nodes = {}
     for relation in canvas_node_relations:

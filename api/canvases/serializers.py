@@ -12,7 +12,9 @@ class PositionSerializer(Serializer):
 
 class ConceptualEdgeSerializer(ModelSerializer):
     type = serializers.ChoiceField(choices=EdgeType.choices, source='edge_type', default=EdgeType.REF)
+    source = serializers.UUIDField(source='source_id', read_only=True)
     sourceHandle = serializers.ChoiceField(choices=NodeHandle.choices, source='source_handle')
+    target = serializers.UUIDField(source='target_id', read_only=True)
     targetHandle = serializers.ChoiceField(choices=NodeHandle.choices, source='target_handle')
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
