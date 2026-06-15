@@ -34,8 +34,6 @@ class AgentRoleConfig(BaseModel):
 
     # Stores the full prompt text with placeholders (e.g., {{final_question_draft}})
     prompt_template = models.TextField(
-        null=True,
-        blank=True,
         help_text="The full template text used to render the final prompt, containing all static text and {{variable}} placeholders."
     )
 
@@ -47,6 +45,8 @@ class AgentRoleConfig(BaseModel):
     )
 
     output_schema = models.JSONField(
+        default=dict,
+        blank=True,
         help_text="The JSON schema defining the required output structure for the LLM response."
     )
 
