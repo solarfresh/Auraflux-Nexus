@@ -2,11 +2,12 @@ import logging
 from types import SimpleNamespace
 from uuid import UUID
 
-from core.constants import EntityStatus
 from django.apps import apps
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from messaging.constants import CreateNewCanvas, RecommendConceptualNodes
+from messaging.constants import (CreateNewCanvas,
+                                 RecommendConceptualEdges,
+                                 RecommendConceptualNodes)
 from messaging.tasks import publish_event
 from projects.models import ExplorationPhaseData, ResearchProject
 
@@ -49,6 +50,23 @@ def atomic_read_and_lock_exploration_data(
         exploration_data = ExplorationPhaseData.objects.select_for_update().get(project=project)
 
         return project, exploration_data
+
+def get_conceptual_edges_recommendation(user_id: UUID, project_id: UUID, canvas_id: UUID):
+    payload = {
+        'user_id': user_id,
+        'canvas_id': canvas_id,
+        'on_canvas_str': '',
+        'on_canvas_ids': '',
+        'recommendation_mode': 'autonomous',
+    }
+
+    publish_event.delay(
+        event_type=RecommendConceptualEdges.name,
+        payload=payload,
+        queue=RecommendConceptualEdges.queue
+    )
+
+
 
 def get_conceptual_nodes_recommendation(user_id: UUID, project_id: UUID, canvas_id: UUID):
     """

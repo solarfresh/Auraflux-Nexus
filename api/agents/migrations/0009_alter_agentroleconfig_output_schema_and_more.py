@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('agents', '0008_merge_20260514_0757'),
+        ('agents', '0007_agentroleconfig_name'),
     ]
 
     operations = [

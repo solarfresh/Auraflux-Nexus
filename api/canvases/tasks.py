@@ -82,18 +82,30 @@ def handle_recommend_conceptual_edges_request(event_type: str, payload: dict):
     canvas_id = payload.get('canvas_id', '')
     on_canvas_str = payload.get('on_canvas_str', '')
     on_canvas_ids = payload.get('on_canvas_ids', '')
-    agent_output = payload.get('agent_output', {})
-    newly_onboarded_nodes = list(
-        node for node in agent_output['nodes'].values()
-        if node['id'] not in on_canvas_ids
-    )
+    newly_onboarded_nodes = payload.get('newly_onboarded_nodes', [])
+    recommendation_mode = payload.get('recommendation_mode', '')
+    if recommendation_mode == 'directed':
+        agent_role_name = 'DirectedWeaverAgent'
+        agent_output = payload.get('agent_output', {})
+        newly_onboarded_nodes = list(
+            node for node in agent_output['nodes'].values()
+            if node['id'] not in on_canvas_ids
+        )
+    elif recommendation_mode == 'autonomous':
+        agent_role_name = 'AutonomousWeaverAgent'
+        canvas_node_relations = CanvasNodeRelation.objects.filter(canvas__id=canvas_id).all()
+        on_canvas_str = "\n".join([f"- [{relation.node.node_type}] {relation.node.label} (ID: {relation.node.id})" for relation in canvas_node_relations])
+        on_canvas_ids = [str(relation.node.id) for relation in canvas_node_relations]
+    else:
+        raise ValueError(f"Invalid recommendation_mode: {recommendation_mode}")
+
     newly_onboarded_nodes_str = "\n".join([
         f"- [{node['type']}] {node['label']} (id: {node['id']}, anchor_id: {node['anchor_id']})"
         for node in newly_onboarded_nodes
     ])
 
     payload = {
-        'agent_role_name': 'DirectedWeaverAgent',
+        'agent_role_name': agent_role_name,
         'agent_input_data': {
             'on_canvas_str': on_canvas_str,
             'newly_onboarded_nodes_str': newly_onboarded_nodes_str
@@ -113,7 +125,6 @@ def handle_recommend_conceptual_edges_request(event_type: str, payload: dict):
         payload=payload,
         queue=AgentRequest.queue
     )
-
 
 @celery_app.task(name=RecommendConceptualNodes.name, ignore_result=True)
 def handle_recommend_conceptual_nodes_request(event_type: str, payload: dict):
@@ -173,7 +184,8 @@ def handle_recommend_conceptual_nodes_request(event_type: str, payload: dict):
             'user_id': user_id,
             'canvas_id': canvas_id,
             'on_canvas_str': on_canvas_str,
-            'on_canvas_ids': on_canvas_ids
+            'on_canvas_ids': on_canvas_ids,
+            'recommendation_mode': 'directed'
         },
         'next_event_queue': RecommendConceptualEdges.queue,
     }
