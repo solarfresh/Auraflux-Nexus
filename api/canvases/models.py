@@ -41,6 +41,7 @@ class ConceptualNode(BaseModel):
     rationale = models.TextField(
         blank=True,
         null=True,
+        default='',
         help_text="AI's justification or reasoning for this node."
     )
     anchor = models.ForeignKey(

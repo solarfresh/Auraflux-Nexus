@@ -28,6 +28,10 @@ class PersistChatEntry:
     queue = Queue.DEFAULT
 
 
+class RecommendConceptualEdges:
+    name = "handle_recommend_conceptual_edges_request"
+    queue = Queue.DEFAULT
+
 class RecommendConceptualNodes:
     name = "handle_recommend_conceptual_nodes_request"
     queue = Queue.DEFAULT
