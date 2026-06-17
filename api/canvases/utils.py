@@ -1,11 +1,12 @@
 import logging
 from types import SimpleNamespace
-from typing import Any, Dict
+from typing import Any, Dict, List
 from uuid import UUID
 
 from canvases.models import (CanvasNodeRelation, ConceptualCanvas,
                              ConceptualEdge, ConceptualNode)
-from canvases.serializers import (ConceptualGraphSerializer,
+from canvases.serializers import (ConceptualEdgeSerializer,
+                                  ConceptualGraphSerializer,
                                   ConceptualNodeSerializer)
 from core.constants import EntityStatus
 from core.utils import create_serialized_data
@@ -13,6 +14,9 @@ from django.apps import apps
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from messaging.constants import (RecommendConceptualEdges,
+                                 RecommendConceptualNodes)
+from messaging.tasks import publish_event
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +161,49 @@ def get_conceptual_graph(canvas_id: str):
     )
     conceptual_graph_serializer = ConceptualGraphSerializer(graph_instance)
     return conceptual_graph_serializer.data
+
+def get_conceptual_edges(canvas_id: str):
+    on_canvas_edges = ConceptualEdge.objects.filter(canvas__id=canvas_id).all()
+    conceptual_edges_serializer = ConceptualEdgeSerializer(on_canvas_edges)
+    return conceptual_edges_serializer.data
+
+def get_conceptual_edges_recommendation(
+        user_id: UUID,
+        canvas_id: UUID,
+        newly_onboarded_nodes: List[ConceptualNode]
+    ):
+
+    canvas_node_relations = CanvasNodeRelation.objects.filter(canvas__id=canvas_id).all()
+    on_canvas_str = "\n".join([f"- [{relation.node.node_type}] {relation.node.label} (ID: {relation.node.id})" for relation in canvas_node_relations])
+    on_canvas_ids = [str(relation.node.id) for relation in canvas_node_relations]
+
+    payload = {
+        'user_id': user_id,
+        'canvas_id': canvas_id,
+        'on_canvas_str': on_canvas_str,
+        'on_canvas_ids': on_canvas_ids,
+        'newly_onboarded_nodes': newly_onboarded_nodes,
+        'recommendation_mode': 'autonomous',
+    }
+
+    publish_event.delay(
+        event_type=RecommendConceptualEdges.name,
+        payload=payload,
+        queue=RecommendConceptualEdges.queue
+    )
+
+def get_conceptual_nodes_recommendation(user_id: UUID, project_id: UUID, canvas_id: UUID):
+    """
+    """
+    publish_event.delay(
+        event_type=RecommendConceptualNodes.name,
+        payload={
+            'user_id': user_id,
+            'canvas_id': canvas_id,
+            'project_id': project_id
+        },
+        queue=RecommendConceptualNodes.queue
+    )
 
 def delete_canvas_node_relation_by_constraint(canvas_id: str, node_id: str):
     instance = CanvasNodeRelation.objects.get(canvas_id=canvas_id, node_id=node_id)

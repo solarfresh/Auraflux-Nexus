@@ -13,6 +13,11 @@ class CreateNewCanvas:
     queue = Queue.DEFAULT
 
 
+class GetRecommendedConceptualEdges:
+    name = "get_recommended_conceptual_edges"
+    queue = Queue.DEFAULT
+
+
 class GetRecommendedConceptualNodes:
     name = "get_recommended_conceptual_nodes"
     queue = Queue.DEFAULT

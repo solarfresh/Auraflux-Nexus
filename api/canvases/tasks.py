@@ -8,16 +8,18 @@ from canvases.serializers import ConceptualGraphSerializer
 from canvases.utils import (create_new_canvas_by_project_id,
                             create_or_update_conceptual_edges,
                             create_or_update_conceptual_node_relations,
-                            get_conceptual_graph,
+                            get_conceptual_edges, get_conceptual_graph,
                             set_position_to_relation_nodes)
 from core.celery_app import celery_app
 from core.constants import EntityStatus
 from messaging.constants import (AgentRequest, CreateNewCanvas,
+                                 GetRecommendedConceptualEdges,
                                  GetRecommendedConceptualNodes,
                                  RecommendConceptualEdges,
                                  RecommendConceptualNodes)
 from messaging.tasks import publish_event
-from realtime.constants import CONCEPTUAL_NODES_RECOMMENDATION
+from realtime.constants import (CONCEPTUAL_EDGES_RECOMMENDATION,
+                                CONCEPTUAL_NODES_RECOMMENDATION)
 from realtime.utils import send_ws_notification
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,7 @@ def get_recommended_conceptual_nodes(event_type: str, payload: dict):
     user_id = payload.get('user_id', '')
     canvas_id = payload.get('canvas_id', '')
     newly_onboarded_nodes = payload.get('newly_onboarded_nodes', [])
+    recommendation_mode = payload.get('recommendation_mode', '')
 
     method = payload.get('method', 'get')
     if method == 'create_or_update':
@@ -67,10 +70,16 @@ def get_recommended_conceptual_nodes(event_type: str, payload: dict):
         )
 
     modified_conceptual_graph = get_conceptual_graph(canvas_id)
+    if recommendation_mode == 'directed':
+        event_type = CONCEPTUAL_NODES_RECOMMENDATION
+    elif recommendation_mode == 'autonomous':
+        event_type = CONCEPTUAL_EDGES_RECOMMENDATION
+    else:
+        raise ValueError(f"Invalid recommendation_mode: {recommendation_mode}")
 
     send_ws_notification(
         user_id=user_id,
-        event_type=CONCEPTUAL_NODES_RECOMMENDATION,
+        event_type=event_type,
         payload=dict(modified_conceptual_graph)
     )
 
@@ -91,18 +100,23 @@ def handle_recommend_conceptual_edges_request(event_type: str, payload: dict):
             node for node in agent_output['nodes'].values()
             if node['id'] not in on_canvas_ids
         )
+
+        newly_onboarded_nodes_str = "\n".join([
+            f"- [{node['type']}] {node['label']} (id: {node['id']}, anchor_id: {node['anchor_id']})"
+            for node in newly_onboarded_nodes
+        ])
     elif recommendation_mode == 'autonomous':
         agent_role_name = 'AutonomousWeaverAgent'
         canvas_node_relations = CanvasNodeRelation.objects.filter(canvas__id=canvas_id).all()
         on_canvas_str = "\n".join([f"- [{relation.node.node_type}] {relation.node.label} (ID: {relation.node.id})" for relation in canvas_node_relations])
         on_canvas_ids = [str(relation.node.id) for relation in canvas_node_relations]
+
+        newly_onboarded_nodes_str = "\n".join([
+            f"- [{node['type']}] {node['label']} (id: {node['id']})"
+            for node in newly_onboarded_nodes
+        ])
     else:
         raise ValueError(f"Invalid recommendation_mode: {recommendation_mode}")
-
-    newly_onboarded_nodes_str = "\n".join([
-        f"- [{node['type']}] {node['label']} (id: {node['id']}, anchor_id: {node['anchor_id']})"
-        for node in newly_onboarded_nodes
-    ])
 
     payload = {
         'agent_role_name': agent_role_name,
@@ -114,6 +128,7 @@ def handle_recommend_conceptual_edges_request(event_type: str, payload: dict):
         'next_event_payload': {
             'user_id': user_id,
             'canvas_id': canvas_id,
+            'recommendation_mode': recommendation_mode,
             'newly_onboarded_nodes': newly_onboarded_nodes,
             'method': 'create_or_update'
         },

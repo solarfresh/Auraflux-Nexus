@@ -16,7 +16,8 @@ from .models import ConceptualEdge
 from .serializers import ConceptualEdgeSerializer
 from .utils import (create_conceptual_edge,
                     delete_canvas_node_relation_by_constraint,
-                    get_conceptual_graph,
+                    get_conceptual_edges_recommendation, get_conceptual_graph,
+                    get_conceptual_nodes_recommendation,
                     update_canvas_node_relation_by_constraint)
 
 logger = logging.getLogger(__name__)
@@ -183,6 +184,25 @@ class ConceptualEdgeCreateView(APIView):
             return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
 
 
+class ConceptualEdgesRecommendationView(APIView):
+
+    async def post(self, request, canvas_id):
+        user = request.user
+        request_data = request.data
+        newly_onboarded_nodes = request_data.get('newlyOnboardedNodes', [])
+
+        await sync_to_async(get_conceptual_edges_recommendation)(
+            user.id,
+            canvas_id,
+            newly_onboarded_nodes
+        )
+
+        return Response(
+            {"status": "processing", "message": "Conceptual nodes recommendation is being processed."},
+            status=status.HTTP_202_ACCEPTED
+        )
+
+
 class ConceptualNodeView(APIView):
 
     permission_classes = [IsAuthenticated]
@@ -253,3 +273,39 @@ class ConceptualNodeView(APIView):
         )
 
         return Response(relation_data, status=status.HTTP_200_OK)
+
+
+class ConceptualNodesRecommendationView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Trigger Conceptual Nodes Recommendation",
+        description=(
+            "Initiates the process to recommend conceptual nodes based on the current canvas and project state. "
+            "This endpoint is designed to be called after the Exploration phase data is set, and it will publish an event to the message queue to start the recommendation process asynchronously."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="project_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the project session.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            ),
+            OpenApiParameter(
+                name="canvas_id",
+                location=OpenApiParameter.PATH,
+                description="Unique identifier for the canvas for which to recommend conceptual nodes.",
+                required=True,
+                type=OpenApiTypes.UUID,
+            )
+        ]
+    )
+    async def post(self, request, project_id, canvas_id):
+        user = request.user
+        await sync_to_async(get_conceptual_nodes_recommendation)(user.id, project_id, canvas_id)
+        return Response(
+            {"status": "processing", "message": "Conceptual nodes recommendation is being processed."},
+            status=status.HTTP_202_ACCEPTED
+        )

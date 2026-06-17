@@ -5,54 +5,16 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from projects.models import ExplorationPhaseData, ResearchProject
 from projects.serializers import (ExplorationPhaseDataSerializer,
                                    SidebarRegistryInfoSerializer)
 from projects.utils import (atomic_read_and_lock_exploration_data,
-                             get_conceptual_nodes_recommendation,
                              get_sidebar_registry_info)
 
 from .base import ProjectBaseView
 
 logger = logging.getLogger(__name__)
-
-
-class ConceptualNodesRecommendationView(ProjectBaseView):
-
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="Trigger Conceptual Nodes Recommendation",
-        description=(
-            "Initiates the process to recommend conceptual nodes based on the current canvas and project state. "
-            "This endpoint is designed to be called after the Exploration phase data is set, and it will publish an event to the message queue to start the recommendation process asynchronously."
-        ),
-        parameters=[
-            OpenApiParameter(
-                name="project_id",
-                location=OpenApiParameter.PATH,
-                description="Unique identifier for the project session.",
-                required=True,
-                type=OpenApiTypes.UUID,
-            ),
-            OpenApiParameter(
-                name="canvas_id",
-                location=OpenApiParameter.PATH,
-                description="Unique identifier for the canvas for which to recommend conceptual nodes.",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ]
-    )
-    async def post(self, request, project_id, canvas_id):
-        user = request.user
-        await sync_to_async(get_conceptual_nodes_recommendation)(user.id, project_id, canvas_id)
-        return Response(
-            {"status": "processing", "message": "Conceptual nodes recommendation is being processed."},
-            status=status.HTTP_202_ACCEPTED
-        )
 
 
 class ExplorationPhaseDataView(ProjectBaseView):
