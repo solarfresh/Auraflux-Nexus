@@ -1,10 +1,9 @@
+from canvases.views import ConceptualNodesRecommendationView
 from django.urls import path
-from projects.views import (ChatHistoryEntryView,
-                            ConceptualNodesRecommendationView,
-                            ExplorationPhaseDataView, ProjectChatInputView,
-                            ProjectDetailView, ProjectView, RefinedTopicView,
-                            ReflectionLogView, SessionReflectionLogView,
-                            SessionTopicKeywordView,
+from projects.views import (ChatHistoryEntryView, ExplorationPhaseDataView,
+                            ProjectChatInputView, ProjectDetailView,
+                            ProjectView, RefinedTopicView, ReflectionLogView,
+                            SessionReflectionLogView, SessionTopicKeywordView,
                             SessionTopicScopeElementView,
                             SidebarRegistryInfoView)
 
@@ -18,7 +17,7 @@ urlpatterns = [
     path('<uuid:project_id>/initiation/chat/', ProjectChatInputView.as_view(), name='project-chat-input'),
     path('<uuid:project_id>/initiation/chat/history/', ChatHistoryEntryView.as_view(), name='project-chat-history'),
     path('<uuid:project_id>/initiation/topic/', RefinedTopicView.as_view(), name='project-refined-topic'),
-    path('<uuid:project_id>/exploration/<uuid:canvas_id>/nodes/', ConceptualNodesRecommendationView().as_view(), name='ConceptualNodesRecommendationView'),
+    path('<uuid:project_id>/exploration/<uuid:canvas_id>/nodes/recommend/', ConceptualNodesRecommendationView().as_view(), name='ConceptualNodesRecommendationView'),
     path('<uuid:project_id>/exploration/session/', ExplorationPhaseDataView().as_view(), name='project-exploration-phase-data'),
     path('<uuid:project_id>/exploration/sidebar/', SidebarRegistryInfoView().as_view(), name='project-sidebar-registry-info'),
 ]

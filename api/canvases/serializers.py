@@ -12,7 +12,9 @@ class PositionSerializer(Serializer):
 
 class ConceptualEdgeSerializer(ModelSerializer):
     type = serializers.ChoiceField(choices=EdgeType.choices, source='edge_type', default=EdgeType.REF)
+    source = serializers.UUIDField(source='source_id')
     sourceHandle = serializers.ChoiceField(choices=NodeHandle.choices, source='source_handle')
+    target = serializers.UUIDField(source='target_id')
     targetHandle = serializers.ChoiceField(choices=NodeHandle.choices, source='target_handle')
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
@@ -78,6 +80,10 @@ class ConceptualGraphSerializer(serializers.Serializer):
     """
     Represents the current state (ground truth) of the canvas layout.
     """
+    canvasId = serializers.UUIDField(
+        source='canvas_id',
+        help_text="Unique identifier for the canvas."
+    )
     nodes = serializers.DictField(
         child=ConceptualNodeSerializer(),
         default=dict,

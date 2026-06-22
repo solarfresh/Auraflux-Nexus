@@ -1,12 +1,16 @@
-from adrf.serializers import ModelSerializer, Serializer
+from adrf.serializers import ModelSerializer
+from agents.models import (AgentProjectRelation, AgentRoleConfig,
+                           ModelFamilies, ModelProvider)
+from django.apps import apps
 from rest_framework import serializers
-from agents.models import AgentRoleConfig, ModelProvider, ModelFamilies
 
 
 class AgentConfigSerializer(ModelSerializer):
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
-    systemPrompt = serializers.CharField(source='system_prompt')
+    name = serializers.CharField(required=False, allow_blank=True)
+    role = serializers.CharField(required=False, allow_blank=True)
+    systemPrompt = serializers.CharField(source='system_prompt', required=False, allow_blank=True)
     promptTemplate = serializers.CharField(source='prompt_template', required=False, allow_blank=True)
     templateVariables = serializers.JSONField(source='template_variables', default={})
     outputSchema = serializers.JSONField(source='output_schema', default={})
@@ -27,6 +31,9 @@ class AgentConfigSerializer(ModelSerializer):
             'llmParameters'
         )
         read_only_fields = ('id', 'createdAt', 'updatedAt')
+        extra_kwargs = {
+            'user': {'write_only': True},
+        }
 
 
 class ModelFamiliesSerializer(ModelSerializer):

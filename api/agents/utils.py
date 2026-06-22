@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, cast
 from uuid import uuid4
 
 from asgiref.sync import async_to_sync
@@ -8,6 +8,15 @@ from auraflux_core.agents import AGENT_REGISTRY, Agent
 from auraflux_core.core.clients.client_manager import ClientManager
 from auraflux_core.core.schemas.clients import ClientConfig, ProviderConfig
 from auraflux_core.core.schemas.messages import Message
+from core.utils import create_serialized_data
+from django.apps import apps
+from django.shortcuts import get_object_or_404
+
+if TYPE_CHECKING:
+    from projects.models import ResearchProject
+    ResearchProjectModel = Type[ResearchProject]
+else:
+    ResearchProjectModel = Type
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +68,9 @@ def compose_prompt(
     except Exception as e:
         logger.critical(f"Error during prompt template rendering: {e}")
         return None
+
+def create_agent_config(user_id:str, data, serializer_class):
+    return create_serialized_data(data, serializer_class, user_id=user_id)
 
 def get_agent_response(agent_config_class, agent_role_name, prompt_text=None, rendered_data: Dict[str, Any] | None = None, tool_args_map: dict | None = None, output_format: str = 'text') -> Any:
     """

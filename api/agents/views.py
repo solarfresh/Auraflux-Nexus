@@ -3,7 +3,7 @@ import logging
 from adrf.views import APIView
 from agents.models import AgentRoleConfig, ModelProvider
 from agents.serializers import AgentConfigSerializer, ModelProviderSerializer
-from agents.utils import measure_model_provider_connection
+from agents.utils import create_agent_config, measure_model_provider_connection
 from asgiref.sync import sync_to_async
 from core.utils import (create_serialized_data, get_serialized_data,
                         get_serialized_data_by_id,
@@ -29,6 +29,17 @@ class AgentConfigView(APIView):
 
         data = await sync_to_async(get_serialized_data)({'user_id': user.id}, AgentRoleConfig, AgentConfigSerializer, many=True)
         return Response(data, status=status.HTTP_200_OK)
+
+    async def post(self, request):
+        user = request.user
+        request_data = request.data
+
+        try:
+            logger.info(request_data)
+            data = await sync_to_async(create_agent_config)(str(user.id), request_data, AgentConfigSerializer)
+            return Response(data, status=status.HTTP_201_CREATED)
+        except Exception as errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class AgentConfigDetailView(APIView):

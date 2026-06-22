@@ -13,6 +13,11 @@ class CreateNewCanvas:
     queue = Queue.DEFAULT
 
 
+class GetRecommendedConceptualEdges:
+    name = "get_recommended_conceptual_edges"
+    queue = Queue.DEFAULT
+
+
 class GetRecommendedConceptualNodes:
     name = "get_recommended_conceptual_nodes"
     queue = Queue.DEFAULT
@@ -27,6 +32,10 @@ class PersistChatEntry:
     name = "persist_chat_entry"
     queue = Queue.DEFAULT
 
+
+class RecommendConceptualEdges:
+    name = "handle_recommend_conceptual_edges_request"
+    queue = Queue.DEFAULT
 
 class RecommendConceptualNodes:
     name = "handle_recommend_conceptual_nodes_request"
