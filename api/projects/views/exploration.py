@@ -118,14 +118,14 @@ class SidebarRegistryInfoView(ProjectBaseView):
     )
     async def get(self, request, project_id):
         """
-        Retrieves InitiationPhaseData and related topic components for the sidebar.
+        Retrieves ConsultationPhaseData and related topic components for the sidebar.
         """
 
         try:
             sidebar_registry_info = await sync_to_async(get_sidebar_registry_info)(project_id, SidebarRegistryInfoSerializer)
         except ExplorationPhaseData.DoesNotExist:
             return Response(
-                {"detail": f"Initiation data not found for session {project_id}."},
+                {"detail": f"Consultation data not found for session {project_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
 

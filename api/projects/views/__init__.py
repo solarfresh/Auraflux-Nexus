@@ -10,9 +10,9 @@ from .base import (ChatHistoryEntryView, ProjectDetailView, ProjectView,
 # Exploration Stage Views (Placeholders for next phase)
 # Specifically for Canvas & Resource Mapping
 from .exploration import ExplorationPhaseDataView, SidebarRegistryInfoView
-# Initiation Stage Views
+# Consultation Stage Views
 # Specifically for Topic Definition & Lock-in
-from .initiation import (ProjectChatInputView, RefinedTopicView,
+from .consultation import (ProjectChatInputView, RefinedTopicView,
                          SessionTopicKeywordView, SessionTopicScopeElementView)
 
 __all__ = [
@@ -22,7 +22,7 @@ __all__ = [
     'ProjectDetailView',
     'ReflectionLogView',
     'SessionReflectionLogView',
-    # initiation
+    # consultation
     'RefinedTopicView',
     'SessionTopicKeywordView',
     'SessionTopicScopeElementView',

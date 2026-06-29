@@ -47,9 +47,9 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.CreateModel(
-            name='InitiationPhaseData',
+            name='ConsultationPhaseData',
             fields=[
-                ('project', models.OneToOneField(help_text='One-to-one link to the parent ResearchProject (Control Model).', on_delete=django.db.models.deletion.CASCADE, primary_key=True, related_name='initiation_data', serialize=False, to='projects.researchproject')),
+                ('project', models.OneToOneField(help_text='One-to-one link to the parent ResearchProject (Control Model).', on_delete=django.db.models.deletion.CASCADE, primary_key=True, related_name='consultation_data', serialize=False, to='projects.researchproject')),
                 ('stability_score', models.IntegerField(default=0, help_text="The Agent's Stability Score [1-10]. Used to derive clarity label and progress visualization.")),
                 ('feasibility_status', models.CharField(default='LOW', help_text='The Feasibility Status (e.g., LOW, MEDIUM, HIGH) derived from Agent input and structural rules.', max_length=10)),
                 ('final_research_question', models.TextField(blank=True, default='', help_text='The most refined draft of the research question extracted by the Agent.')),
@@ -59,8 +59,8 @@ class Migration(migrations.Migration):
                 ('updated_at', models.DateTimeField(auto_now=True)),
             ],
             options={
-                'verbose_name': 'Initiation Phase Data',
-                'verbose_name_plural': 'Initiation Phase Data',
+                'verbose_name': 'Consultation Phase Data',
+                'verbose_name_plural': 'Consultation Phase Data',
             },
         ),
         migrations.CreateModel(

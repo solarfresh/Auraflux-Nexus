@@ -2,16 +2,16 @@ from adrf.serializers import ModelSerializer, Serializer
 from knowledge.serializers import (ProcessedKeywordSerializer,
                                    ProcessedScopeSerializer)
 from rest_framework import serializers
-from projects.models import InitiationPhaseData
+from projects.models import ConsultationPhaseData
 
 
-class InitiationPhaseDataSerializer(ModelSerializer):
+class ConsultationPhaseDataSerializer(ModelSerializer):
     """
-    Serializer for InitiationPhaseData model.
-    Used to represent the overall state and key attributes of the Initiation Phase.
+    Serializer for ConsultationPhaseData model.
+    Used to represent the overall state and key attributes of the Consultation Phase.
     """
     class Meta:
-        model = InitiationPhaseData
+        model = ConsultationPhaseData
         fields = (
             'project_id',
             'stability_score',

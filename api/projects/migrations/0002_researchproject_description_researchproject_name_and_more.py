@@ -24,6 +24,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='researchproject',
             name='current_stage',
-            field=models.CharField(choices=[('INITIATION', 'Initiation'), ('EXPLORATION', 'Exploration'), ('SYNTHESIS', 'Synthesis')], default='INITIATION', help_text='Current ISP phase (DEFINITION, EXPLORATION, etc.).', max_length=50),
+            field=models.CharField(choices=[('CONSULTATION', 'Consultation'), ('EXPLORATION', 'Exploration'), ('SYNTHESIS', 'Synthesis')], default='CONSULTATION', help_text='Current ISP phase (DEFINITION, EXPLORATION, etc.).', max_length=50),
         ),
     ]

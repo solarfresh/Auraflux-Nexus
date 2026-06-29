@@ -9,17 +9,17 @@ from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
 from knowledge.serializers import (ProcessedKeywordSerializer,
                                    ProcessedScopeSerializer)
-from messaging.constants import InitiationEAStreamRequest
+from messaging.constants import ConsultationEAStreamRequest
 from messaging.tasks import publish_event
 from rest_framework import status
 from rest_framework.response import Response
-from projects.models import (ChatHistoryEntry, InitiationPhaseData,
+from projects.models import (ChatHistoryEntry, ConsultationPhaseData,
                               ResearchProject)
 from projects.serializers import (ChatEntryHistorySerializer,
                                    RefinedTopicSerializer,
                                    ProjectChatInputRequestSerializer,
                                    ProjectChatInputResponseSerializer)
-from projects.utils import (atomic_read_and_lock_initiation_data,
+from projects.utils import (atomic_read_and_lock_consultation_data,
                              create_topic_keyword_by_session,
                              create_topic_scope_element_by_session,
                              get_refined_topic_instance,
@@ -34,10 +34,10 @@ logger = logging.getLogger(__name__)
 class RefinedTopicView(ProjectBaseView):
 
     @extend_schema(
-        summary="Retrieve Initiation Phase Sidebar Data",
+        summary="Retrieve Consultation Phase Sidebar Data",
         description=(
             "Fetches all structured data (Stability Score, Feasibility, Keywords, Scope, Reflection) "
-            "required to render the Sidebar UI during the INITIATION phase."
+            "required to render the Sidebar UI during the CONSULTATION phase."
         ),
         parameters=[
             OpenApiParameter(
@@ -56,14 +56,14 @@ class RefinedTopicView(ProjectBaseView):
     )
     async def get(self, request, project_id):
         """
-        Retrieves InitiationPhaseData and related topic components for the sidebar.
+        Retrieves ConsultationPhaseData and related topic components for the sidebar.
         """
 
         try:
             refined_topic = await sync_to_async(get_refined_topic_instance)(project_id, RefinedTopicSerializer)
-        except InitiationPhaseData.DoesNotExist:
+        except ConsultationPhaseData.DoesNotExist:
             return Response(
-                {"detail": f"Initiation data not found for session {project_id}."},
+                {"detail": f"Consultation data not found for session {project_id}."},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -287,7 +287,7 @@ class ProjectChatInputView(ProjectBaseView):
         # State Locking and Initial Check (Ensure Atomicity)
         try:
             # Atomic read and lock (runs in a sync thread via @sync_to_async)
-            project, phase_data = await sync_to_async(atomic_read_and_lock_initiation_data)(
+            project, phase_data = await sync_to_async(atomic_read_and_lock_consultation_data)(
                 project_id=project_id,
                 user_id=user.id
             )
@@ -299,10 +299,10 @@ class ProjectChatInputView(ProjectBaseView):
             logger.error(f"DB lock or retrieval error: {e}")
             return Response({"error": "Database access error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        if project.current_stage != ISPStage.INITIATION:
+        if project.current_stage != ISPStage.CONSULTATION:
             error_msg = (
                 f"Operation not allowed. Current stage is '{project.current_stage}', "
-                f"expected '{ISPStage.INITIATION}' for this chat endpoint."
+                f"expected '{ISPStage.CONSULTATION}' for this chat endpoint."
             )
             return Response({"error": error_msg}, status=status.HTTP_409_CONFLICT)
 
@@ -324,12 +324,12 @@ class ProjectChatInputView(ProjectBaseView):
         }
 
         publish_event.delay(
-            event_type=InitiationEAStreamRequest.name,
+            event_type=ConsultationEAStreamRequest.name,
             payload=event_payload,
-            queue=InitiationEAStreamRequest.queue
+            queue=ConsultationEAStreamRequest.queue
         )
 
-        logger.info("Published %s event for session ID: %s", InitiationEAStreamRequest.name, project_id)
+        logger.info("Published %s event for session ID: %s", ConsultationEAStreamRequest.name, project_id)
 
         return Response(
             {"status": "processing", "message": "Chat input request submitted. Please await the real-time response."},

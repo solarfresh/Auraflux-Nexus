@@ -18,7 +18,7 @@ Auraflux-Nexus manages the entire research lifecycle, from the initial user inpu
 ### 2. Data Integrity and Structured Output
 
 * **Source of Truth:** Serves as the authoritative source for all structured research data, including the **Reflection Log**, **Final Question Status (DRAFT/LOCKED)**, **Topic Keywords**, and **Scope Elements**.
-* **Project Gates:** Enforces the business logic and flow control rules (ISP principles). It verifies that all necessary data conditions (e.g., question locked, minimum keywords met) are satisfied before allowing phase transitions (e.g., from Initiation to Exploration).
+* **Project Gates:** Enforces the business logic and flow control rules (ISP principles). It verifies that all necessary data conditions (e.g., question locked, minimum keywords met) are satisfied before allowing phase transitions (e.g., from Consultation to Exploration).
 * **API Services:** Provides RESTful API endpoints for persistent data storage, retrieval, and updates from the frontend.
 
 ### 3. Real-Time Communication
@@ -37,7 +37,7 @@ Auraflux-Nexus is built on a robust, asynchronous, and scalable architecture des
 | **Backend Core** | **Django / Django REST Framework (DRF)** | Provides the robust API framework and serves as the foundation for the central state model (SSOT). |
 | **Asynchronous Task Queue** | **Celery** | Acts as the **Event Dispatcher** to isolate the high latency of LLM reasoning (TR Agent) using the **Fire-and-Forget** pattern, ensuring non-blocking Web API execution and high throughput. |
 | **Language** | **Python** | Primary language used for agent logic and backend services. |
-| **State Management** | **InitiationPhaseData Model** | Serves as the **Single Source of Truth (SSOT)** for all structured data, ensuring data atomicity and consistency across all agents. |
+| **State Management** | **ConsultationPhaseData Model** | Serves as the **Single Source of Truth (SSOT)** for all structured data, ensuring data atomicity and consistency across all agents. |
 | **Communication** | **WebSocket** | Used for real-time, non-blocking delivery of asynchronous results to the frontend, utilizing **Dual-Channel Isolation** for stream data and atomic state updates. |
 | **Resource Optimization** | **Singleton Pattern** | Implemented via `worker_process_init` to ensure thread-safe, one-time initialization of resource-intensive components (e.g., LLM connections) within Celery workers. |
 | **Configuration** | **Django Models (AgentRoleConfig)** | Implements the **Configuration as Data** principle, allowing dynamic instantiation and modification of agent behavior without code redeployment. |

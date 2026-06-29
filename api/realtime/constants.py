@@ -1,4 +1,4 @@
-INITIATION_EA_STREAM = 'initiation_ea_stream'
-INITIATION_REFINED_TOPIC = 'initiation_refined_topic'
+CONSULTATION_EA_STREAM = 'consultation_ea_stream'
+CONSULTATION_REFINED_TOPIC = 'consultation_refined_topic'
 CONCEPTUAL_EDGES_RECOMMENDATION = 'conceptual_edges_recommendation'
 CONCEPTUAL_NODES_RECOMMENDATION = 'conceptual_nodes_recommendation'

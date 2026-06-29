@@ -4,7 +4,7 @@ from .base import (ChatEntryHistorySerializer,
                    ReflectionLogSerializer)
 from .exploration import (ExplorationPhaseDataSerializer,
                           SidebarRegistryInfoSerializer)
-from .initiation import InitiationPhaseDataSerializer, RefinedTopicSerializer
+from .consultation import ConsultationPhaseDataSerializer, RefinedTopicSerializer
 
 __all__ = [
     # base
@@ -13,8 +13,8 @@ __all__ = [
     'ProjectSerialize',
     'ProjectChatInputRequestSerializer',
     'ProjectChatInputResponseSerializer',
-    # initiation
-    'InitiationPhaseDataSerializer',
+    # consultation
+    'ConsultationPhaseDataSerializer',
     'RefinedTopicSerializer',
     # exploration
     'ExplorationPhaseDataSerializer',
