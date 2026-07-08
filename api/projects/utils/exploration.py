@@ -1,8 +1,6 @@
 import logging
-from types import SimpleNamespace
 from uuid import UUID
 
-from django.apps import apps
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from messaging.constants import CreateNewCanvas
@@ -14,8 +12,6 @@ logger = logging.getLogger(__name__)
 def atomic_read_and_lock_exploration_data(
     project_id: UUID,
     user_id: UUID,
-    stability_score: int,
-    final_research_question: str
 ) -> tuple[ResearchProject, ExplorationPhaseData]:
     """
     Executes a single atomic transaction to lock the state and load the exploration data.
@@ -40,8 +36,6 @@ def atomic_read_and_lock_exploration_data(
         logger.debug("call the synchronous helper function *within* the atomic block")
         exploration_data = get_or_create_exploration_data(
             project,
-            stability_score,
-            final_research_question
         )
 
         logger.debug("Manually lock the data instance if necessary (complex locking is usually done via raw query or dedicated manager)")
@@ -49,7 +43,7 @@ def atomic_read_and_lock_exploration_data(
 
         return project, exploration_data
 
-def get_or_create_exploration_data(project: ResearchProject, stability_score: int, final_research_question: str) -> ExplorationPhaseData:
+def get_or_create_exploration_data(project: ResearchProject) -> ExplorationPhaseData:
     """
     Retrieves or creates the explorationPhaseData linked to the project state.
     Handles phase-specific default value initialization.
@@ -64,8 +58,6 @@ def get_or_create_exploration_data(project: ResearchProject, stability_score: in
         project=project,
     )
 
-    exploration_data.stability_score = stability_score
-    exploration_data.final_research_question = final_research_question
     exploration_data.save()
 
     publish_event.delay(
@@ -75,27 +67,3 @@ def get_or_create_exploration_data(project: ResearchProject, stability_score: in
     )
 
     return exploration_data
-
-def get_sidebar_registry_info(project_id: UUID, serializer_class=None):
-    if serializer_class is None:
-        raise ValueError("serializer_class must be provided")
-
-    ConceptualNode = apps.get_model('canvases', 'ConceptualNode')
-
-    exploration_instance = ExplorationPhaseData.objects.select_related(
-        'project',
-    ).get(
-        project_id=project_id
-    )
-
-    nodes = ConceptualNode.objects.filter(project=exploration_instance.project).distinct()
-
-    sidebar_registry_info = SimpleNamespace(
-        stability_score=exploration_instance.stability_score,
-        final_research_question=exploration_instance.final_research_question,
-        activated_canvas_id=exploration_instance.active_canvas_id,
-        nodes=nodes,
-    )
-
-    serializer = serializer_class(sidebar_registry_info)
-    return serializer.data

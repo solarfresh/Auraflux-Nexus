@@ -4,15 +4,13 @@ from adrf.views import APIView
 from asgiref.sync import sync_to_async
 from core.utils import (get_serialized_data, get_serialized_data_by_id,
                         update_serialized_data_by_id)
+from django.apps import apps
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
-from projects.models import ChatHistoryEntry, ReflectionLog, ResearchProject
-from projects.serializers import (ChatEntryHistorySerializer, ProjectSerialize,
-                                  ReflectionLogSerializer)
-from projects.utils import (create_reflection_log_by_session,
-                            get_reflection_log_by_project,
-                            update_reflection_log_by_id)
+from projects.models import ChatHistoryEntry, ResearchProject
+from projects.serializers import ChatEntryHistorySerializer, ProjectSerialize
+from canvases.serializers import ConceptualNodeSerializer
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -48,6 +46,19 @@ class ProjectDetailView(ProjectBaseView):
             return Response(data, status=status.HTTP_200_OK)
         except Exception as errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ConceptualNodeView(ProjectBaseView):
+    async def get(self, request, project_id):
+        """
+        Retrieves ConsultationPhaseData and related topic components for the sidebar.
+        """
+
+        user = request.user
+        ConceptualNode = apps.get_model('canvases', 'ConceptualNode')
+
+        data = await sync_to_async(get_serialized_data)({'project__id': project_id}, ConceptualNode, ConceptualNodeSerializer, many=True)
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class ChatHistoryEntryView(ProjectBaseView):
@@ -98,149 +109,4 @@ class ChatHistoryEntryView(ProjectBaseView):
     )
     async def get(self, request, project_id):
         data = await sync_to_async(get_serialized_data)({'project_id': project_id}, ChatHistoryEntry, ChatEntryHistorySerializer, many=True)
-        return Response(data, status=status.HTTP_200_OK)
-
-
-class SessionReflectionLogView(ProjectBaseView):
-
-    @extend_schema(
-        summary="Retrieve Reflection Log for Project Session",
-        description=(
-            "Fetches the list of Reflection Logs associated with a specific project session identified by project_id."
-        ),
-        parameters=[
-            OpenApiParameter(
-                name="project_id",
-                location=OpenApiParameter.PATH,
-                description="Unique identifier for the project session.",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ],
-        responses={
-            200: ReflectionLogSerializer,
-            404: OpenApiTypes.OBJECT,
-            500: OpenApiTypes.OBJECT,
-        }
-    )
-    async def get(self, request, project_id):
-        try:
-            data = await sync_to_async(get_reflection_log_by_project)(project_id, serializer_class=ReflectionLogSerializer)
-        except ReflectionLog.DoesNotExist:
-            return Response({"detail": f"Reflection logs not found for session {project_id}."}, status=status.HTTP_404_NOT_FOUND)
-
-        return Response(data, status=status.HTTP_200_OK)
-
-    @extend_schema(
-        summary="Add a New Reflection Log",
-        description=(
-            "Adds a new Reflection Log associated with the specified project session."
-        ),
-        parameters=[
-            OpenApiParameter(
-                name="project_id",
-                location=OpenApiParameter.PATH,
-                description="Unique identifier for the project session.",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ],
-        request=ReflectionLogSerializer,
-        responses={
-            201: ReflectionLogSerializer,
-            400: OpenApiTypes.OBJECT,
-            404: OpenApiTypes.OBJECT,
-            500: OpenApiTypes.OBJECT,
-        }
-    )
-    async def post(self, request, project_id):
-        reflection_log_title = request.data.get('title')
-        reflection_log_content = request.data.get('content')
-        reflection_log_status = request.data.get('status', None)
-        if not reflection_log_title:
-            return Response(
-                {"detail": "title is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if not reflection_log_content:
-            return Response(
-                {"detail": "content is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            data = await sync_to_async(create_reflection_log_by_session)(
-                project_id,
-                reflection_log_title,
-                reflection_log_content,
-                reflection_log_status,
-                serializer_class=ReflectionLogSerializer)
-        except ResearchProject.DoesNotExist:
-            return Response(
-                {"detail": f"Research project state not found for session {project_id}."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        except ReflectionLog.DoesNotExist:
-            return Response(
-                {"detail": f"Failed to create reflection log for session {project_id}."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        return Response(data, status=status.HTTP_201_CREATED)
-
-
-class ReflectionLogView(ProjectBaseView):
-
-    @extend_schema(
-        summary="Update an Existing Reflection Log",
-        description=(
-            "Updates the text and status of an existing Reflection Log identified by log_id."
-        ),
-        parameters=[
-            OpenApiParameter(
-                name="log_id",
-                location=OpenApiParameter.PATH,
-                description="Unique identifier for the topic keyword.",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ],
-        request=ReflectionLogSerializer,
-        responses={
-            200: ReflectionLogSerializer,
-            400: OpenApiTypes.OBJECT,
-            404: OpenApiTypes.OBJECT,
-            500: OpenApiTypes.OBJECT,
-        }
-    )
-    async def put(self, request, log_id):
-        reflection_log_title = request.data.get('title')
-        reflection_log_content = request.data.get('content')
-        reflection_log_status = request.data.get('status', None)
-        if not reflection_log_title:
-            return Response(
-                {"detail": "title is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if not reflection_log_content:
-            return Response(
-                {"detail": "content is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            data = await sync_to_async(update_reflection_log_by_id)(
-                log_id,
-                reflection_log_title,
-                reflection_log_content,
-                reflection_log_status,
-                serializer_class=ReflectionLogSerializer)
-        except ReflectionLog.DoesNotExist:
-            return Response(
-                {"detail": f"Reflection Log '{log_id}' not found."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
         return Response(data, status=status.HTTP_200_OK)

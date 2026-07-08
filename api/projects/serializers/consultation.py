@@ -23,16 +23,3 @@ class ConsultationPhaseDataSerializer(ModelSerializer):
             'updated_at'
         )
         read_only_fields = ('project_id', 'created_at', 'updated_at')
-
-
-class RefinedTopicSerializer(Serializer):
-    """
-    A composite serializer representing the full response after topic refinement.
-    Matches the 'RefinedTopic' TypeScript interface.
-    """
-    stabilityScore = serializers.FloatField(source='stability_score', default=0)
-    feasibilityStatus = serializers.CharField(source='feasibility_status', default='LOW')
-    finalQuestion = serializers.CharField(source='final_research_question', default='')
-    keywords = ProcessedKeywordSerializer(many=True, default=[])
-    scope = ProcessedScopeSerializer(many=True, source='scope_elements', default=[])
-    resourceSuggestion = serializers.CharField(allow_null=True, required=False, source='resource_suggestion', default='')

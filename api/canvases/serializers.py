@@ -64,8 +64,6 @@ class ConceptualNodeSerializer(ModelSerializer):
             'label',
             'type',
             'position',
-            'groundedness',
-            'solidity',
             'content',
             'sourceRef',
             'rationale',

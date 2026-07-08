@@ -1,11 +1,9 @@
-from types import SimpleNamespace
 from typing import Dict
 from uuid import UUID
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from projects.models import ConsultationPhaseData, ResearchProject
-from projects.utils.base import get_resource_suggestion
 
 
 def atomic_read_and_lock_consultation_data(project_id: UUID, user_id: UUID) -> tuple[ResearchProject, ConsultationPhaseData]:
@@ -47,36 +45,6 @@ def patch_consultation_phase_data(project_id: UUID, data: Dict, serializer_class
         serializer.save()
 
     raise serializer.errors
-
-def get_refined_topic_instance(project_id: UUID, serializer_class=None):
-    if serializer_class is None:
-        raise ValueError("serializer_class must be provided")
-
-    consultation_instance = ConsultationPhaseData.objects.select_related(
-        'project',
-    ).get(
-        project_id=project_id
-    )
-
-    refined_topic = SimpleNamespace(
-            stability_score=consultation_instance.stability_score,
-            feasibility_status=consultation_instance.feasibility_status,
-            final_research_question=consultation_instance.final_research_question,
-            keywords=consultation_instance.project.keywords.all(),
-            scope_elements=consultation_instance.project.scope_elements.all(),
-            resource_suggestion= get_resource_suggestion(consultation_instance.feasibility_status)
-    )
-
-    serializer = serializer_class(refined_topic)
-    return serializer.data
-
-def determine_feasibility_status(score: int, is_niche: bool) -> str:
-    """Helper function to determine the final Feasibility Status based on Agent output and rules."""
-    if is_niche or score < 4:
-        return 'LOW'
-    if score >= 8:
-        return 'HIGH'
-    return 'MEDIUM'
 
 def get_or_create_consultation_data(project: ResearchProject) -> ConsultationPhaseData:
     """

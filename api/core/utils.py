@@ -18,7 +18,11 @@ def delete_instance_by_query(query: Dict, model_class):
     instance.delete()
 
 def get_serialized_data(query: Dict, model_class, serializer_class, many=True):
-    instances = model_class.objects.filter(**query).all()
+    if (many):
+        instances = model_class.objects.filter(**query).all()
+    else:
+        instances = model_class.objects.filter(**query).get()
+
     serializer = serializer_class(instances, many=many)
     return serializer.data
 

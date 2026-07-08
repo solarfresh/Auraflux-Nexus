@@ -1,23 +1,15 @@
 from canvases.views import ConceptualNodesRecommendationView
 from django.urls import path
-from projects.views import (ChatHistoryEntryView, ExplorationPhaseDataView,
-                            ProjectChatInputView, ProjectDetailView,
-                            ProjectView, RefinedTopicView, ReflectionLogView,
-                            SessionReflectionLogView, SessionTopicKeywordView,
-                            SessionTopicScopeElementView,
-                            SidebarRegistryInfoView)
+from projects.views import (ChatHistoryEntryView, ConceptualNodeView,
+                            ExplorationPhaseDataView, ProjectChatInputView,
+                            ProjectDetailView, ProjectView)
 
 urlpatterns = [
-    path('reflection/<uuid:log_id>/', ReflectionLogView.as_view(), name='reflection-log'),
     path('', ProjectView.as_view(), name='project'),
     path('<uuid:project_id>/', ProjectDetailView().as_view(), name='project-detail'),
-    path('<uuid:project_id>/keywords/', SessionTopicKeywordView.as_view(), name='project-topic-keyword'),
-    path('<uuid:project_id>/reflection/', SessionReflectionLogView.as_view(), name='project-reflection'),
-    path('<uuid:project_id>/scopes/', SessionTopicScopeElementView.as_view(), name='project-topic-scope-element'),
+    path('<uuid:project_id>/nodes/', ConceptualNodeView.as_view(), name='project-nodes'),
     path('<uuid:project_id>/consultation/chat/', ProjectChatInputView.as_view(), name='project-chat-input'),
     path('<uuid:project_id>/consultation/chat/history/', ChatHistoryEntryView.as_view(), name='project-chat-history'),
-    path('<uuid:project_id>/consultation/topic/', RefinedTopicView.as_view(), name='project-refined-topic'),
     path('<uuid:project_id>/exploration/<uuid:canvas_id>/nodes/recommend/', ConceptualNodesRecommendationView().as_view(), name='ConceptualNodesRecommendationView'),
     path('<uuid:project_id>/exploration/session/', ExplorationPhaseDataView().as_view(), name='project-exploration-phase-data'),
-    path('<uuid:project_id>/exploration/sidebar/', SidebarRegistryInfoView().as_view(), name='project-sidebar-registry-info'),
 ]
