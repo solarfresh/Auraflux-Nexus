@@ -2,16 +2,18 @@ import logging
 
 from adrf.views import APIView
 from asgiref.sync import sync_to_async
+from canvases.serializers import ConceptualNodeSerializer
 from core.utils import (get_serialized_data, get_serialized_data_by_id,
-                        update_serialized_data_by_id)
+                        update_serialized_data_by_id,
+                        update_serialized_data_by_query)
 from django.apps import apps
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
 from projects.models import ChatHistoryEntry, ResearchProject
 from projects.serializers import ChatEntryHistorySerializer, ProjectSerialize
-from canvases.serializers import ConceptualNodeSerializer
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -59,6 +61,28 @@ class ConceptualNodeView(ProjectBaseView):
 
         data = await sync_to_async(get_serialized_data)({'project__id': project_id}, ConceptualNode, ConceptualNodeSerializer, many=True)
         return Response(data, status=status.HTTP_200_OK)
+
+class ConceptualNodeDetailView(ProjectBaseView):
+
+    async def put(self, request, project_id, node_id):
+        user = request.user
+        data = request.data
+
+        ConceptualNode = apps.get_model('canvases', 'ConceptualNode')
+        try:
+            result = await sync_to_async(update_serialized_data_by_query)(
+                query={'id':node_id, 'project_id':project_id},
+                data=data,
+                model_class=ConceptualNode,
+                serializer_class=ConceptualNodeSerializer
+            )
+            return Response(result)
+        except ValidationError as e:
+            # DRF Spectacular will recognize this as a 400 response
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            # Handle cases where update_serialized_data_by_query might raise 404
+            return Response(e, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ChatHistoryEntryView(ProjectBaseView):

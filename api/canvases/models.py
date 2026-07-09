@@ -14,6 +14,11 @@ class ConceptualNode(BaseModel):
         choices=NodeType.choices,
         default=NodeType.CONCEPT
     )
+    status = models.CharField(
+        max_length=20,
+        choices=EntityStatus.choices,
+        default=EntityStatus.AI_EXTRACTED
+    )
 
     # --- Knowledge Content (Empirical Layer) ---
     content = models.TextField(
