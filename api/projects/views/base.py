@@ -5,7 +5,7 @@ from asgiref.sync import sync_to_async
 from canvases.serializers import ConceptualNodeSerializer
 from core.utils import (get_serialized_data, get_serialized_data_by_id,
                         update_serialized_data_by_id,
-                        update_serialized_data_by_query)
+                        update_serialized_data_by_query, create_serialized_data)
 from django.apps import apps
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
@@ -34,6 +34,16 @@ class ProjectView(ProjectBaseView):
 
         data = await sync_to_async(get_serialized_data)({'user_id': user.id}, ResearchProject, ProjectSerialize, many=True)
         return Response(data, status=status.HTTP_200_OK)
+
+    async def post(self, request):
+        user = request.user
+        request_data = request.data
+
+        try:
+            data = await sync_to_async(create_serialized_data)(request_data, ProjectSerialize, user_id=user.id)
+            return Response(data, status=status.HTTP_200_OK)
+        except Exception as errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ProjectDetailView(ProjectBaseView):
