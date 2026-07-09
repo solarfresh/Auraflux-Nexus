@@ -4,11 +4,11 @@ from typing import Any, Dict
 from auraflux_core.core.schemas.messages import Message
 from core.celery_app import celery_app
 from django.core.cache import cache
-from messaging.constants import (AgentRequest, InitiationEAStreamRequest,
+from messaging.constants import (AgentRequest, ConsultationEAStreamRequest,
                                  PersistChatEntry, TopicRefinementAgentRequest,
                                  TopicStabilityUpdated, UpdateModelFamilies)
 from messaging.tasks import publish_event
-from realtime.constants import INITIATION_EA_STREAM
+from realtime.constants import CONSULTATION_EA_STREAM
 from realtime.utils import send_ws_notification
 
 from .models import AgentRoleConfig, ModelProvider, ModelFamilies
@@ -163,15 +163,15 @@ def handle_topic_refinement_agent_request(event_type: str, payload: dict):
     cache.delete(lock_key)
     logger.info("Task %s: update topic stability events published successfully.", task_id)
 
-@celery_app.task(name=InitiationEAStreamRequest.name, ignore_result=True)
-def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
+@celery_app.task(name=ConsultationEAStreamRequest.name, ignore_result=True)
+def handle_consultation_ea_stream_request_event(event_type: str, payload: dict):
     """
-    Consumer task for INITIATION_EA_STREAM_REQUEST.
+    Consumer task for CONSULTATION_EA_STREAM_REQUEST.
 
     1. Executes the Explorer Agent (EA) and streams the response text.
-    2. Publishes INITIATION_STREAM_COMPLETED event to transfer control to SKE computation.
+    2. Publishes CONSULTATION_STREAM_COMPLETED event to transfer control to SKE computation.
     """
-    task_id = handle_initiation_ea_stream_request_event.request.id
+    task_id = handle_consultation_ea_stream_request_event.request.id
 
     # Extract necessary fields for EA (Dialogue focused)
     project_id = payload.get('project_id')
@@ -223,9 +223,9 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
             full_response_text += text_chunk
             send_ws_notification(
                 user_id=user_id,
-                event_type=INITIATION_EA_STREAM,
+                event_type=CONSULTATION_EA_STREAM,
                 payload={
-                    "message": "Initiation EA streaming in progress.",
+                    "message": "Consultation EA streaming in progress.",
                     "status": "RUNNING",
                     'full_response_text': full_response_text
                 }
@@ -233,9 +233,9 @@ def handle_initiation_ea_stream_request_event(event_type: str, payload: dict):
 
         send_ws_notification(
             user_id=user_id,
-            event_type=INITIATION_EA_STREAM,
+            event_type=CONSULTATION_EA_STREAM,
             payload={
-                "message": "Initiation EA streaming complete.",
+                "message": "Consultation EA streaming complete.",
                 "status": "COMPLETE",
                 'full_response_text': full_response_text
             }

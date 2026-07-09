@@ -4,13 +4,12 @@ from asgiref.sync import sync_to_async
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
                                    extend_schema)
+from core.utils import get_serialized_data
 from rest_framework import status
 from rest_framework.response import Response
-from projects.models import ExplorationPhaseData, ResearchProject
-from projects.serializers import (ExplorationPhaseDataSerializer,
-                                   SidebarRegistryInfoSerializer)
-from projects.utils import (atomic_read_and_lock_exploration_data,
-                             get_sidebar_registry_info)
+from projects.models import ResearchProject, ExplorationPhaseData
+from projects.serializers import ExplorationPhaseDataSerializer
+from projects.utils import atomic_read_and_lock_exploration_data
 
 from .base import ProjectBaseView
 
@@ -24,6 +23,12 @@ class ExplorationPhaseDataView(ProjectBaseView):
     in an atomic manner to prevent race conditions and maintain data integrity
     during the Exploration phase of the project.
     """
+
+    async def get(self, request, project_id):
+        data = await sync_to_async(get_serialized_data)({'project__id': project_id}, ExplorationPhaseData, ExplorationPhaseDataSerializer, many=False)
+        logger.info(data)
+        return Response(data, status=status.HTTP_200_OK)
+
     @extend_schema(
         summary="Create or Retrieve Exploration Phase Data",
         description=(
@@ -58,15 +63,6 @@ class ExplorationPhaseDataView(ProjectBaseView):
         ]
     )
     async def post(self, request, project_id):
-        stability_score = request.data.get('stabilityScore')
-        final_question = request.data.get('finalQuestion')
-
-        if not stability_score:
-            return Response({"error": "stabilityScore is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        if not final_question:
-            return Response({"error": "finalQuestion is required."}, status=status.HTTP_400_BAD_REQUEST)
-
         user = request.user
 
         # State Locking and Initial Check (Ensure Atomicity)
@@ -75,8 +71,6 @@ class ExplorationPhaseDataView(ProjectBaseView):
             project, phase_data = await sync_to_async(atomic_read_and_lock_exploration_data)(
                 project_id=project_id,
                 user_id=user.id,
-                stability_score=stability_score,
-                final_research_question=final_question
             )
         except ResearchProject.DoesNotExist:
             return Response({"error": "Project session not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
@@ -91,42 +85,3 @@ class ExplorationPhaseDataView(ProjectBaseView):
             serializer.data,
             status=status.HTTP_201_CREATED
         )
-
-
-class SidebarRegistryInfoView(ProjectBaseView):
-
-    @extend_schema(
-        summary="Retrieve Exploration Phase Sidebar Data",
-        description=(
-            "Fetches all structured data (Stability Score, Keywords, Scope, Reflection) "
-            "required to render the Sidebar UI during the Exploration phase."
-        ),
-        parameters=[
-            OpenApiParameter(
-                name="project_id",
-                location=OpenApiParameter.PATH,
-                description="Unique identifier for the project session.",
-                required=True,
-                type=OpenApiTypes.UUID,
-            )
-        ],
-        responses={
-            200: SidebarRegistryInfoSerializer,
-            404: OpenApiTypes.OBJECT,
-            500: OpenApiTypes.OBJECT,
-        }
-    )
-    async def get(self, request, project_id):
-        """
-        Retrieves InitiationPhaseData and related topic components for the sidebar.
-        """
-
-        try:
-            sidebar_registry_info = await sync_to_async(get_sidebar_registry_info)(project_id, SidebarRegistryInfoSerializer)
-        except ExplorationPhaseData.DoesNotExist:
-            return Response(
-                {"detail": f"Initiation data not found for session {project_id}."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        return Response(sidebar_registry_info, status=status.HTTP_200_OK)

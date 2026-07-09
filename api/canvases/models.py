@@ -14,14 +14,10 @@ class ConceptualNode(BaseModel):
         choices=NodeType.choices,
         default=NodeType.CONCEPT
     )
-    groundedness = models.IntegerField(
-        default=5,
-        help_text="Health Score (0-10). Values < 4 trigger visual alarm in frontend."
-    )
-    solidity = models.CharField(
+    status = models.CharField(
         max_length=20,
-        choices=NodeSolidity.choices,
-        default=NodeSolidity.PULSING
+        choices=EntityStatus.choices,
+        default=EntityStatus.AI_EXTRACTED
     )
 
     # --- Knowledge Content (Empirical Layer) ---
@@ -43,14 +39,6 @@ class ConceptualNode(BaseModel):
         null=True,
         default='',
         help_text="AI's justification or reasoning for this node."
-    )
-    anchor = models.ForeignKey(
-        'self',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='descendants',
-        help_text="Parent node for growth tracking/hierarchy."
     )
 
     content_type = models.ForeignKey(

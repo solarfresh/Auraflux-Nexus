@@ -46,7 +46,7 @@ class ConceptualNodeSerializer(ModelSerializer):
     type = serializers.ChoiceField(choices=NodeType.choices, source='node_type')
 
     # --- Knowledge & Anti-Hallucination ---
-    sourceRef = serializers.CharField(source='source_ref', allow_blank=True, required=False)
+    sourceRef = serializers.CharField(source='source_ref', allow_blank=True, allow_null=True, required=False)
     anchorId = serializers.PrimaryKeyRelatedField(
         source='anchor',
         queryset=ConceptualNode.objects.all(),
@@ -64,8 +64,6 @@ class ConceptualNodeSerializer(ModelSerializer):
             'label',
             'type',
             'position',
-            'groundedness',
-            'solidity',
             'content',
             'sourceRef',
             'rationale',

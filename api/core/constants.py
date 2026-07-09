@@ -46,7 +46,7 @@ class ISPStage(models.TextChoices):
     Information Search Process (ISP) Phases.
     Maps to the global project progress tracking.
     """
-    INITIATION = 'INITIATION', _('Initiation')
+    CONSULTATION = 'CONSULTATION', _('Consultation')
     EXPLORATION = 'EXPLORATION', _('Exploration')
     SYNTHESIS = 'SYNTHESIS', _('Synthesis')
 

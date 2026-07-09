@@ -40,7 +40,7 @@ def create_new_canvas_by_project_id(project_id: UUID):
     canvas.save()
 
     exploration_phase_data = ExplorationPhaseData.objects.get(project=project)
-    setattr(exploration_phase_data, 'activated_canvas_id', canvas.id)
+    setattr(exploration_phase_data, 'active_canvas_id', canvas.id)
     exploration_phase_data.save()
 
     node = ConceptualNode(label=canvas.name, node_type='NAVIGATION')

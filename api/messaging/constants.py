@@ -23,8 +23,8 @@ class GetRecommendedConceptualNodes:
     queue = Queue.DEFAULT
 
 
-class InitiationEAStreamRequest:
-    name = "handle_initiation_ea_stream_request_event"
+class ConsultationEAStreamRequest:
+    name = "handle_consultation_ea_stream_request_event"
     queue = Queue.STREAM
 
 
