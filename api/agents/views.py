@@ -35,7 +35,6 @@ class AgentConfigView(APIView):
         request_data = request.data
 
         try:
-            logger.info(request_data)
             data = await sync_to_async(create_agent_config)(str(user.id), request_data, AgentConfigSerializer)
             return Response(data, status=status.HTTP_201_CREATED)
         except Exception as errors:
