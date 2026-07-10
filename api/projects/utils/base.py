@@ -1,25 +1,42 @@
-from typing import TYPE_CHECKING
+import logging
+from typing import TYPE_CHECKING, Any, Dict, cast
 from uuid import UUID
 
 from django.contrib.auth import get_user_model
-
 from projects.models import ResearchProject
-
+from projects.serializers import ProjectSerialize
+from projects.utils.consultation import get_or_create_consultation_data
+from projects.utils.exploration import get_or_create_exploration_data
 
 if TYPE_CHECKING:
     from users.models import User
 else:
     User = get_user_model()
 
-def create_project(project_id: UUID, user_id: UUID, initial_stage: str) -> ResearchProject:
+logger = logging.getLogger(__name__)
+
+def create_project(data: Dict[str, Any], user_id: str):
     """
     Creates a new ResearchEntityStatus instance.
     """
-    return ResearchProject.objects.create(
-        id=project_id,
-        user_id=user_id,
-        current_stage=initial_stage
-    )
+
+
+    serializer = ProjectSerialize(data=data)
+    if serializer.is_valid():
+        instance = serializer.save(user_id=user_id)
+        project = cast(ResearchProject, instance)
+
+        get_or_create_consultation_data(
+            project=project,
+        )
+        get_or_create_exploration_data(
+            project=project,
+        )
+
+        return serializer.data
+    else:
+        return serializer.errors
+
 
 def get_project_by_id(project_id: UUID, user_id: UUID) -> ResearchProject:
     """

@@ -1,3 +1,4 @@
+import logging
 from typing import Dict
 from uuid import UUID
 
@@ -5,6 +6,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from projects.models import ConsultationPhaseData, ResearchProject
 
+logger = logging.getLogger(__name__)
 
 def atomic_read_and_lock_consultation_data(project_id: UUID, user_id: UUID) -> tuple[ResearchProject, ConsultationPhaseData]:
     """
@@ -59,11 +61,9 @@ def get_or_create_consultation_data(project: ResearchProject) -> ConsultationPha
     consultation_data, created = ConsultationPhaseData.objects.get_or_create(
         project=project,
         defaults={
-            'stability_score': 0.0,
-            'final_research_question': '',
-            'feasibility_status': 'LOW',
             'conversation_summary': '',
             'last_analysis_sequence_number': 0
         }
     )
+
     return consultation_data

@@ -16,6 +16,7 @@ from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from projects.utils import create_project
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class ProjectView(ProjectBaseView):
         request_data = request.data
 
         try:
-            data = await sync_to_async(create_serialized_data)(request_data, ProjectSerialize, user_id=user.id)
+            data = await sync_to_async(create_project)(request_data, user_id=str(user.id))
             return Response(data, status=status.HTTP_200_OK)
         except Exception as errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
@@ -69,8 +70,19 @@ class ConceptualNodeView(ProjectBaseView):
         user = request.user
         ConceptualNode = apps.get_model('canvases', 'ConceptualNode')
 
-        data = await sync_to_async(get_serialized_data)({'project__id': project_id}, ConceptualNode, ConceptualNodeSerializer, many=True)
+        data = await sync_to_async(get_serialized_data)({'project_id': project_id}, ConceptualNode, ConceptualNodeSerializer, many=True)
         return Response(data, status=status.HTTP_200_OK)
+
+    async def post(self, request, project_id):
+        user = request.user
+        request_data = request.data
+
+        try:
+            data = await sync_to_async(create_serialized_data)(request_data, ConceptualNodeSerializer, project_id=project_id)
+            return Response(data, status=status.HTTP_200_OK)
+        except Exception as errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class ConceptualNodeDetailView(ProjectBaseView):
 
