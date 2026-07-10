@@ -44,9 +44,13 @@ class ConceptualNode(BaseModel):
     content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE,
+        blank=True,
+        null=True,
         help_text=""
     )
     object_id = models.UUIDField(
+        blank=True,
+        null=True,
         help_text="The UUID of the specific owner instance."
     )
     owner = GenericForeignKey('content_type', 'object_id')
