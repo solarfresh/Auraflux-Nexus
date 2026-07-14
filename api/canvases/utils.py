@@ -173,7 +173,7 @@ def get_conceptual_edges_recommendation(
         newly_onboarded_nodes: List[ConceptualNode]
     ):
 
-    canvas_node_relations = CanvasNodeRelation.objects.filter(canvas__id=canvas_id).all()
+    canvas_node_relations = CanvasNodeRelation.objects.filter(canvas__id=canvas_id).exclude(node__status='ON_HOLD').all()
     on_canvas_str = "\n".join([f"- [{relation.node.node_type}] {relation.node.label} (ID: {relation.node.id})" for relation in canvas_node_relations])
     on_canvas_ids = [str(relation.node.id) for relation in canvas_node_relations]
 
