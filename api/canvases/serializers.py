@@ -1,8 +1,11 @@
+import logging
 from adrf.serializers import ModelSerializer, Serializer
 from canvases.constants import EdgeType, NodeHandle, NodeType
 from canvases.models import CanvasNodeRelation, ConceptualEdge, ConceptualNode
 from core.constants import EntityStatus
 from rest_framework import serializers
+
+logger = logging.getLogger(__name__)
 
 
 class PositionSerializer(Serializer):
@@ -71,15 +74,17 @@ class CanvasNodeRelationSerializer(serializers.ModelSerializer):
         source='node'
     )
     position = PositionSerializer(required=False)
+    rationale = serializers.CharField(allow_blank=True, allow_null=True, required=False)
 
     class Meta:
         model = CanvasNodeRelation
         fields = ['node_id', 'status', 'rationale', 'position']
 
     def validate(self, attrs):
-        position_data = attrs.pop('position', {})
-        attrs['x'] = position_data.get('x')
-        attrs['y'] = position_data.get('y')
+        if 'position' in attrs:
+            position_data = attrs.pop('position', {})
+            attrs['x'] = position_data.get('x')
+            attrs['y'] = position_data.get('y')
         return attrs
 
     def create(self, validated_data):

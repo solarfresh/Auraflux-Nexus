@@ -125,8 +125,11 @@ def create_or_update_conceptual_edges(canvas_id: str, data: list):
 
 def create_conceptual_node_relation(canvas_id: str, data: Dict[str, Any]):
     serializer = CanvasNodeRelationSerializer(data=data, context={'canvas_id': canvas_id}, many=False)
-    serializer.save()
-    return serializer.data
+    if serializer.is_valid():
+        serializer.save()
+        return serializer.data
+    else:
+        return serializer.errors
 
 def create_or_update_conceptual_node_relations(canvas_id: str, data: Dict[str, Any]):
     relation_instances = CanvasNodeRelation.objects.filter(canvas__id=canvas_id).all()
@@ -220,8 +223,14 @@ def delete_canvas_node_relation_by_constraint(canvas_id: str, node_id: str):
 
 def update_canvas_node_relation_by_constraint(canvas_id: str, node_id: str, data: Dict[str, Any]):
     instance = CanvasNodeRelation.objects.get(canvas_id=canvas_id, node_id=node_id)
-    serializer = CanvasNodeRelationSerializer(instance=instance, data=data, partial=True)
+    serializer = CanvasNodeRelationSerializer(
+        instance=instance,
+        data=data,
+        context={'canvas_id': canvas_id},
+        partial=True)
     if serializer.is_valid():
         serializer.save()
+    else:
+        logging.error(serializer.errors)
 
     return serializer.data
