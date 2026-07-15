@@ -14,7 +14,7 @@ from rest_framework.response import Response
 
 from .models import ConceptualEdge
 from .serializers import ConceptualEdgeSerializer
-from .utils import (create_conceptual_edge,
+from .utils import (create_conceptual_edge, create_conceptual_node_relation,
                     delete_canvas_node_relation_by_constraint,
                     get_conceptual_edges_recommendation, get_conceptual_graph,
                     get_conceptual_nodes_recommendation,
@@ -273,6 +273,25 @@ class ConceptualNodeView(APIView):
         )
 
         return Response(relation_data, status=status.HTTP_200_OK)
+
+
+class ConceptualNodeCreateView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    async def post(self, request, canvas_id):
+        data = request.data
+
+        try:
+            # Passing Serializer class directly to the helper
+            result = await sync_to_async(create_conceptual_node_relation)(
+                canvas_id,
+                data,
+            )
+            return Response(result, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            # DRF Spectacular will recognize this as a 400 response
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ConceptualNodesRecommendationView(APIView):

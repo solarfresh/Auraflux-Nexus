@@ -1,5 +1,4 @@
-from adrf.serializers import ModelSerializer, Serializer
-from canvases.serializers import ConceptualNodeSerializer
+from adrf.serializers import ModelSerializer
 from rest_framework import serializers
 from projects.models import ExplorationPhaseData
 

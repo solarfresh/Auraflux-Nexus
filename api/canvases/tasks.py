@@ -8,8 +8,7 @@ from canvases.serializers import ConceptualGraphSerializer
 from canvases.utils import (create_new_canvas_by_project_id,
                             create_or_update_conceptual_edges,
                             create_or_update_conceptual_node_relations,
-                            get_conceptual_edges, get_conceptual_graph,
-                            set_position_to_relation_nodes)
+                            get_conceptual_graph)
 from core.celery_app import celery_app
 from core.constants import EntityStatus
 from messaging.constants import (AgentRequest, CreateNewCanvas,
@@ -107,7 +106,7 @@ def handle_recommend_conceptual_edges_request(event_type: str, payload: dict):
         ])
     elif recommendation_mode == 'autonomous':
         agent_role_name = 'AutonomousWeaverAgent'
-        canvas_node_relations = CanvasNodeRelation.objects.filter(canvas__id=canvas_id).exclude(node__status='ON_HOLD').all()
+        canvas_node_relations = CanvasNodeRelation.objects.filter(canvas__id=canvas_id, node__status='LOCKED').all()
         on_canvas_str = "\n".join([f"- [{relation.node.node_type}] {relation.node.label} (ID: {relation.node.id})" for relation in canvas_node_relations])
         on_canvas_ids = [str(relation.node.id) for relation in canvas_node_relations]
 
@@ -177,8 +176,7 @@ def handle_recommend_conceptual_nodes_request(event_type: str, payload: dict):
 
     graph_nodes = {}
     for relation in canvas_node_relations:
-        node = set_position_to_relation_nodes(relation)
-        graph_nodes[node.id] = node
+        graph_nodes[relation.node.id] = relation
 
     graph_instance = SimpleNamespace(
         canvas_id=canvas_id,

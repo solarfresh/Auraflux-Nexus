@@ -1,6 +1,6 @@
 from adrf.serializers import ModelSerializer, Serializer
 from canvases.constants import EdgeType, NodeHandle, NodeType
-from canvases.models import ConceptualEdge, ConceptualNode
+from canvases.models import CanvasNodeRelation, ConceptualEdge, ConceptualNode
 from core.constants import EntityStatus
 from rest_framework import serializers
 
@@ -41,18 +41,11 @@ class ConceptualEdgeSerializer(ModelSerializer):
 
 class ConceptualNodeSerializer(ModelSerializer):
     # --- UI & Layout ---
-    position = PositionSerializer(required=False)
     status = serializers.ChoiceField(choices=EntityStatus.choices, required=False)
     type = serializers.ChoiceField(choices=NodeType.choices, source='node_type')
 
     # --- Knowledge & Anti-Hallucination ---
     sourceRef = serializers.CharField(source='source_ref', allow_blank=True, allow_null=True, required=False)
-    anchorId = serializers.PrimaryKeyRelatedField(
-        source='anchor',
-        queryset=ConceptualNode.objects.all(),
-        required=False,
-        allow_null=True
-    )
 
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
@@ -63,15 +56,52 @@ class ConceptualNodeSerializer(ModelSerializer):
             'id',
             'label',
             'type',
-            'position',
             'content',
             'sourceRef',
             'rationale',
-            'anchorId',
             'status',
             'createdAt',
             'updatedAt'
         ]
+
+
+class CanvasNodeRelationSerializer(serializers.ModelSerializer):
+    node_id = serializers.PrimaryKeyRelatedField(
+        queryset=ConceptualNode.objects.all(),
+        source='node'
+    )
+    position = PositionSerializer(required=False)
+
+    class Meta:
+        model = CanvasNodeRelation
+        fields = ['node_id', 'status', 'rationale', 'position']
+
+    def validate(self, attrs):
+        position_data = attrs.pop('position', {})
+        attrs['x'] = position_data.get('x')
+        attrs['y'] = position_data.get('y')
+        return attrs
+
+    def create(self, validated_data):
+        validated_data['canvas_id'] = self.context['canvas_id']
+        return super().create(validated_data)
+
+    def to_representation(self, instance):
+        return {
+            'id': instance.node.id,
+            'label': instance.node.label,
+            'type': instance.node.node_type,
+            'content': instance.node.content,
+            'sourceRef': instance.node.source_ref,
+            'createdAt': instance.node.created_at,
+            'updatedAt': instance.node.updated_at,
+            'position': {
+                'x': instance.x,
+                'y': instance.y
+            },
+            'status': instance.status,
+            'rationale': instance.rationale,
+        }
 
 
 class ConceptualGraphSerializer(serializers.Serializer):
@@ -83,7 +113,7 @@ class ConceptualGraphSerializer(serializers.Serializer):
         help_text="Unique identifier for the canvas."
     )
     nodes = serializers.DictField(
-        child=ConceptualNodeSerializer(),
+        child=CanvasNodeRelationSerializer(),
         default=dict,
         help_text="A mapping of unique keys to node data objects."
     )

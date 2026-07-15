@@ -5,7 +5,8 @@ from uuid import UUID
 
 from canvases.models import (CanvasNodeRelation, ConceptualCanvas,
                              ConceptualEdge, ConceptualNode)
-from canvases.serializers import (ConceptualEdgeSerializer,
+from canvases.serializers import (CanvasNodeRelationSerializer,
+                                  ConceptualEdgeSerializer,
                                   ConceptualGraphSerializer,
                                   ConceptualNodeSerializer)
 from core.constants import EntityStatus
@@ -122,6 +123,11 @@ def create_or_update_conceptual_edges(canvas_id: str, data: list):
 
     return {"created": len(to_create), "updated": len(to_update)}
 
+def create_conceptual_node_relation(canvas_id: str, data: Dict[str, Any]):
+    serializer = CanvasNodeRelationSerializer(data=data, context={'canvas_id': canvas_id}, many=False)
+    serializer.save()
+    return serializer.data
+
 def create_or_update_conceptual_node_relations(canvas_id: str, data: Dict[str, Any]):
     relation_instances = CanvasNodeRelation.objects.filter(canvas__id=canvas_id).all()
     on_canvas_nodes = {str(relation.node.id): relation for relation in relation_instances}
@@ -149,14 +155,10 @@ def create_or_update_conceptual_node_relations(canvas_id: str, data: Dict[str, A
 def get_conceptual_graph(canvas_id: str):
     canvas_node_relations = CanvasNodeRelation.objects.filter(canvas__id=canvas_id).all()
     on_canvas_edges = ConceptualEdge.objects.filter(canvas__id=canvas_id).all()
-    on_graph_nodes = {}
-    for relation in canvas_node_relations:
-        node = set_position_to_relation_nodes(relation)
-        on_graph_nodes[node.id] = node
 
     graph_instance = SimpleNamespace(
         canvas_id=canvas_id,
-        nodes={relation.node.id: relation.node for relation in canvas_node_relations},
+        nodes={relation.node.id: relation for relation in canvas_node_relations},
         edges=on_canvas_edges
     )
     conceptual_graph_serializer = ConceptualGraphSerializer(graph_instance)
@@ -173,7 +175,7 @@ def get_conceptual_edges_recommendation(
         newly_onboarded_nodes: List[ConceptualNode]
     ):
 
-    canvas_node_relations = CanvasNodeRelation.objects.filter(canvas__id=canvas_id).exclude(node__status='ON_HOLD').all()
+    canvas_node_relations = CanvasNodeRelation.objects.filter(canvas__id=canvas_id, node__status='LOCKED').all()
     on_canvas_str = "\n".join([f"- [{relation.node.node_type}] {relation.node.label} (ID: {relation.node.id})" for relation in canvas_node_relations])
     on_canvas_ids = [str(relation.node.id) for relation in canvas_node_relations]
 
@@ -216,29 +218,10 @@ def delete_canvas_node_relation_by_constraint(canvas_id: str, node_id: str):
         ).delete()
         instance.delete()
 
-def set_position_to_relation_nodes(relation: CanvasNodeRelation):
-    position = SimpleNamespace(
-        x=relation.x,
-        y=relation.y
-    )
-    setattr(relation.node, 'position', position)
-    setattr(relation.node, 'status', relation.status)
-    return relation.node
-
 def update_canvas_node_relation_by_constraint(canvas_id: str, node_id: str, data: Dict[str, Any]):
     instance = CanvasNodeRelation.objects.get(canvas_id=canvas_id, node_id=node_id)
-    for key, value in data.items():
-        if value is None or key in ['id']:
-            continue
+    serializer = CanvasNodeRelationSerializer(instance=instance, data=data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
 
-        if key == 'position':
-            instance.x = value['x']
-            instance.y = value['y']
-
-        setattr(instance, key, value)
-
-    instance.save()
-
-    node = set_position_to_relation_nodes(instance)
-    serializer = ConceptualNodeSerializer(node)
     return serializer.data
